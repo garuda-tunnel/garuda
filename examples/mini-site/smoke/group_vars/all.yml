@@ -1,0 +1,72 @@
+---
+# Constants used across Z2G phases. Single source of truth for the values
+# hardcoded in dev/vpn2/checklist.md § 3-8.
+
+# z2g_stand_root: garuda-repo repository root (used by phase_1 for pytest).
+# playbook_dir = examples/mini-site/smoke, so ../../.. = garuda-repo root.
+z2g_stand_root: "{{ playbook_dir }}/../../.."
+
+# z2g_terraform_dir: active garuda Terraform unit (examples/mini-site/garuda).
+# playbook_dir = examples/mini-site/smoke, so .. = examples/mini-site/garuda.
+z2g_terraform_dir: "{{ playbook_dir }}/../garuda"
+
+# Network invariants (phase 3.5, 7).
+z2g_border_subnet: "192.0.2.64/26"
+z2g_backbone_subnet: "192.0.2.0/26"
+z2g_wg_hub_ros_subnet: "192.0.2.160/28"
+z2g_wg_pt_subnet: "192.0.2.128/28"
+z2g_wg_de_subnet: "192.0.2.144/28"
+
+# OSPF constants (phase 5, 6, 7).
+z2g_ipt_server_router_id: "198.51.100.99"
+z2g_routeros_wg_hub_ros_neighbor: "192.0.2.161"
+
+# WireGuard handshake freshness (phase 4).
+z2g_wg_handshake_max_age_seconds: 180
+
+# PBR mark / tables (phase 7).
+z2g_pbr_mark: "0x200"
+z2g_geo_table: 200
+z2g_transit_table: 201
+
+# Public IPs for client connectivity checks (phase 8 / 8b / 10) are
+# *not* hardcoded here — they are set as facts by Phase 0 of z2g.yml
+# from terraform outputs (`pt_public_ip`, `de_public_ip`)
+# and from `ansible_smoke_inventory` (`hub_public_ip`).  Tasks
+# reference those facts directly; this keeps GCP IP rotation /
+# stand recreation invisible to the smoke playbook.
+
+# Phase 11 — egress pinning. The pinning API listens on the ipt_server
+# container's backbone IP and is called from a transit-attached client
+# (firezone wg client whose backbone-side saddr the API observes via
+# request.remote).
+ipt_server_backbone_ip: "192.0.2.3"
+ipt_server_host: "hub-mini-site"
+pinning_test_client_host: "fz-client-example"
+pinning_test_client_saddr: "192.0.2.5"
+pinning_wg_client_container: "wg-client"
+
+# RouterOS LAN gateway reachable through the WireGuard hub-ros tunnel (phase 8).
+z2g_routeros_lan_gw: "198.51.100.1"
+
+# Phase 12 — Gateway API TLS pipeline.
+# z2g_firezone_fqdn: FQDN the HTTPRoute is bound to and the cert SAN.
+# Override per-stand with -e z2g_firezone_fqdn=hub.example.net
+z2g_firezone_fqdn: "hub.example.net"
+
+# cert-manager Secret name where the leaf cert for the Gateway listener
+# is stored. Stand-overridable via -e z2g_cert_secret_name=<real-secret>.
+# Default matches the mini-site convention "<listener-name>-tls" for
+# the single "hub" listener.
+z2g_cert_secret_name: "hub-tls"
+
+# Listener name on the platform Gateway that serves firezone. Stand-
+# overridable via -e z2g_listener_name=<real-name>. Default matches
+# the mini-site hostnames entry.
+z2g_listener_name: "hub"
+
+# Platform Gateway resource name and namespace. Stand-overridable.
+# Defaults match modules/k8s_gateway_bootstrap (platform-gateway in
+# gateway-system).
+z2g_gateway_name: "platform-gateway"
+z2g_gateway_namespace: "gateway-system"

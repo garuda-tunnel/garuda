@@ -1,0 +1,5 @@
+gatewayName: platform-gateway
+gatewayClassName: traefik
+clusterIssuerName: letsencrypt-prod
+hostnames:
+  - { name: hub, hostname: hub.example.net, cert_secret_name: hub-tls }

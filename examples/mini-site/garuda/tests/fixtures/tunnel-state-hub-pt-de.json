@@ -1,0 +1,60 @@
+{
+  "pid": 12345,
+  "token": "fixture-token",
+  "session_dir": "/var/tmp/garuda-tunnel-fixture",
+  "started_at": "2026-05-30T00:00:00Z",
+  "warnings": [],
+  "connections": {
+    "hub": {
+      "ports": {"k3s": 16443},
+      "kube_targets": {
+        "k3s": {
+          "cluster_name": "default",
+          "context_name": "default",
+          "local_port": 16443,
+          "endpoint": "https://127.0.0.1:16443",
+          "tls_server_name": "kubernetes",
+          "certificate_authority_data": "",
+          "client_certificate_data": "",
+          "client_key_data": "",
+          "content_b64": "",
+          "path": "/var/tmp/garuda-tunnel-fixture/tunnel-data/hub-k3s"
+        }
+      }
+    },
+    "pt": {
+      "ports": {"k3s": 16440},
+      "kube_targets": {
+        "k3s": {
+          "cluster_name": "default",
+          "context_name": "default",
+          "local_port": 16440,
+          "endpoint": "https://127.0.0.1:16440",
+          "tls_server_name": "kubernetes",
+          "certificate_authority_data": "",
+          "client_certificate_data": "",
+          "client_key_data": "",
+          "content_b64": "",
+          "path": "/var/tmp/garuda-tunnel-fixture/tunnel-data/pt-k3s"
+        }
+      }
+    },
+    "de": {
+      "ports": {"k3s": 16441},
+      "kube_targets": {
+        "k3s": {
+          "cluster_name": "default",
+          "context_name": "default",
+          "local_port": 16441,
+          "endpoint": "https://127.0.0.1:16441",
+          "tls_server_name": "kubernetes",
+          "certificate_authority_data": "",
+          "client_certificate_data": "",
+          "client_key_data": "",
+          "content_b64": "",
+          "path": "/var/tmp/garuda-tunnel-fixture/tunnel-data/de-k3s"
+        }
+      }
+    }
+  }
+}

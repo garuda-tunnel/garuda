@@ -1,0 +1,86 @@
+---
+# Phase 12: Gateway API TLS pipeline assertions.
+#
+# Validates that:
+#   - the platform Gateway is Programmed and its listener is Accepted,
+#   - the firezone HTTPRoute is Accepted by the Gateway,
+#   - cert-manager's per-listener Certificate is Ready,
+#   - the public endpoint serves a Let's Encrypt cert with the
+#     expected SAN and a chain that validates against the system
+#     trust store.
+#
+# Runs on k3s_hosts. Caller must supply:
+#   kubeconfig:        absolute path to hub kubeconfig
+#   firezone_fqdn:     FQDN the HTTPRoute is bound to (also the cert SAN)
+#   gateway_namespace: namespace owning the Gateway (e.g. gateway-system)
+#   gateway_name:      Gateway resource name (e.g. platform-gateway)
+#   listener_name:     name of the Gateway listener to assert Accepted
+#   cert_secret_name:  Secret name where cert-manager wrote the leaf cert
+
+- name: "phase_12: Gateway Programmed"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ kubeconfig }} -n {{ gateway_namespace }}
+      get gateway {{ gateway_name }}
+      -o jsonpath='{.status.conditions[?(@.type=="Programmed")].status}'
+  register: gw_programmed
+  changed_when: false
+  failed_when: gw_programmed.stdout != "True"
+
+- name: "phase_12: Gateway listener Accepted"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ kubeconfig }} -n {{ gateway_namespace }}
+      get gateway {{ gateway_name }}
+      -o jsonpath='{.status.listeners[?(@.name=="{{ listener_name }}")].conditions[?(@.type=="Accepted")].status}'
+  register: listener_accepted
+  changed_when: false
+  failed_when: listener_accepted.stdout != "True"
+
+- name: "phase_12: firezone HTTPRoute Accepted by Gateway"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ kubeconfig }} -n garuda
+      get httproute firezone
+      -o jsonpath='{.status.parents[?(@.parentRef.name=="{{ gateway_name }}")].conditions[?(@.type=="Accepted")].status}'
+  register: route_accepted
+  changed_when: false
+  # HTTPRoute has exactly one parentRef in our design (the platform Gateway);
+  # selecting by parentRef.name is symmetric with the listener-by-name fix above
+  # and guards against accidental multi-parent expansions in future.
+  failed_when: route_accepted.stdout != "True"
+
+- name: "phase_12: locate cert-manager Certificate by secretName"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ kubeconfig }} -n {{ gateway_namespace }}
+      get certificate
+      -o jsonpath='{.items[?(@.spec.secretName=="{{ cert_secret_name }}")].metadata.name}'
+  register: cert_name_result
+  changed_when: false
+  failed_when: cert_name_result.stdout | length == 0
+  vars:
+    msg_no_cert: |
+      No cert-manager Certificate found in {{ gateway_namespace }} whose
+      spec.secretName == {{ cert_secret_name }}. cert-manager's
+      gateway-shim should have created one when the Gateway was annotated.
+      Possible causes: gateway-shim disabled, Gateway annotation missing,
+      Certificate stuck in pre-issue (check Order/Challenge resources).
+
+- name: "phase_12: cert-manager Certificate Ready=True"
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig {{ kubeconfig }} -n {{ gateway_namespace }}
+      get certificate {{ cert_name_result.stdout }}
+      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  register: cert_ready
+  changed_when: false
+  failed_when: cert_ready.stdout != "True"
+
+- name: "phase_12: openssl chain validation against system trust store"
+  # The verification shell lives in files/verify_tls_chain.sh and is run
+  # via ansible.builtin.script so the Ansible task preparser never has to
+  # tokenize a multi-line body mixing $(...), ${}, and pipes (which trips
+  # "failed at splitting arguments"). The FQDN is the only argument.
+  ansible.builtin.script: "files/verify_tls_chain.sh {{ firezone_fqdn | quote }}"
+  changed_when: false

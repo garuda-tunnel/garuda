@@ -1,0 +1,108 @@
+---
+# Phase 3: workload health on k3s nodes (hub + edges).
+
+- name: "§3k — assert k3s service is active"
+  ansible.builtin.command:
+    cmd: systemctl is-active k3s
+  become: true
+  changed_when: false
+  register: _k3s_active
+
+- name: "§3k — assert WireGuard deployment rolled out"
+  vars:
+    _wg_deployments: "{{ ['wg-pt', 'wg-de', 'wg-hub-ros'] if z2g_role == 'hub' else ['wg-' ~ z2g_role] }}"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda rollout status deployment/{{ item }}
+        --timeout=300s
+  become: true
+  changed_when: false
+  loop: "{{ _wg_deployments }}"
+  loop_control:
+    label: "{{ item }}"
+  register: _wg_rollout
+  when: z2g_role in ['hub', 'pt', 'de']
+
+- name: "§3k — read WireGuard pod state"
+  vars:
+    _wg_deployments: "{{ ['wg-pt', 'wg-de', 'wg-hub-ros'] if z2g_role == 'hub' else ['wg-' ~ z2g_role] }}"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda get pods
+        -l app.kubernetes.io/instance={{ item }}
+        -o json
+  become: true
+  changed_when: false
+  loop: "{{ _wg_deployments }}"
+  loop_control:
+    label: "{{ item }}"
+  register: _wg_pods
+  when: z2g_role in ['hub', 'pt', 'de']
+
+- name: "§3k — assert WireGuard pod has wg and frr-sidecar running"
+  vars:
+    _pods: "{{ (item.stdout | from_json)['items'] }}"
+    _running_pods: >-
+      {{ _pods | selectattr('status.phase', 'equalto', 'Running') | list }}
+    _pod: "{{ _running_pods | first | default({}) }}"
+    _containers: "{{ _pod.status.containerStatuses | default([]) }}"
+    _running_names: >-
+      {{ _containers
+         | selectattr('state.running', 'defined')
+         | map(attribute='name')
+         | list }}
+  ansible.builtin.assert:
+    that:
+      - _running_pods | length >= 1
+      - "'wg' in _running_names"
+      - "'frr-sidecar' in _running_names"
+    fail_msg: >-
+      {{ item.item }} has no Running pod with both wg and frr-sidecar
+      containers on {{ inventory_hostname }}. Pod count: {{ _pods | length }},
+      Running pods: {{ _running_pods | length }}, container names with
+       state.running: {{ _running_names }}.
+  loop: "{{ _wg_pods.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: z2g_role in ['hub', 'pt', 'de']
+
+- name: "§3k — assert hub firezone deployment rolled out"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda rollout status deployment/firezone
+        --timeout=300s
+  become: true
+  changed_when: false
+  register: _firezone_rollout
+  when: z2g_role == 'hub'
+
+- name: "§3k — assert hub ipt-server deployment rolled out"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda rollout status deployment/ipt-server
+        --timeout=300s
+  become: true
+  changed_when: false
+  register: _ipt_rollout
+  when: z2g_role == 'hub'
+
+- name: "§3k — assert cert-manager components rolled out on hub"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n cert-manager rollout status deployment/{{ item }}
+        --timeout=300s
+  become: true
+  changed_when: false
+  loop:
+    - cert-manager
+    - cert-manager-cainjector
+    - cert-manager-webhook
+  loop_control:
+    label: "{{ item }}"
+  register: _cert_manager_rollout
+  when: z2g_role == 'hub'

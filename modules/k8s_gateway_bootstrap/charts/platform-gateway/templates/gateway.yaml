@@ -1,0 +1,25 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.gatewayName | quote }}
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.clusterIssuerName | quote }}
+  labels:
+    {{- include "platform-gateway.labels" . | nindent 4 }}
+spec:
+  gatewayClassName: {{ .Values.gatewayClassName | quote }}
+  listeners:
+    {{- range .Values.hostnames }}
+    - name: {{ .name | quote }}
+      port: 443
+      protocol: HTTPS
+      hostname: {{ .hostname | quote }}
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: {{ .cert_secret_name | quote }}
+      allowedRoutes:
+        namespaces:
+          from: All
+    {{- end }}

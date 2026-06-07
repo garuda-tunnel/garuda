@@ -1,0 +1,3 @@
+name: letsencrypt-prod
+acmeServer: https://acme-v02.api.letsencrypt.org/directory
+email: admin@example.net

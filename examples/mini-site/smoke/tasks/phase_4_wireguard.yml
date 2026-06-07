@@ -1,0 +1,44 @@
+---
+# Phase 4: WireGuard tunnel handshake freshness and transfer.
+- name: "§4 — choose tunnels per host"
+  ansible.builtin.set_fact:
+    _wg_tunnels: >-
+      {{ ['wg-pt'] if z2g_role == 'pt'
+          else (['wg-de'] if z2g_role == 'de' else []) }}
+
+- name: "§4 — read WireGuard dump from k3s workloads"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda exec deploy/{{ item }} -c wg -- wg show {{ item }} dump
+  become: true
+  register: _wg_dump
+  changed_when: false
+  loop: "{{ _wg_tunnels }}"
+  loop_control:
+    label: "{{ item }}"
+  when: z2g_role in ['hub', 'pt', 'de']
+
+- name: "§4 — keep only executed WireGuard dump results"
+  ansible.builtin.set_fact:
+    _wg_dump_results: >-
+      {{ ((_wg_dump | default({'results': []})).results)
+         | rejectattr('skipped', 'defined') | list }}
+
+- name: "§4 — assert handshake fresh and non-zero transfer"
+  ansible.builtin.assert:
+    that:
+      - (item.stdout_lines | length) >= 2
+      - >-
+        (item.stdout_lines[1].split('	')[4] | int) > 0
+        and (lookup('pipe', 'date +%s') | int) - (item.stdout_lines[1].split('	')[4] | int)
+            < z2g_wg_handshake_max_age_seconds
+      - (item.stdout_lines[1].split('	')[5] | int) > 0
+      - (item.stdout_lines[1].split('	')[6] | int) > 0
+    fail_msg: |
+      Tunnel {{ item.item }} on {{ inventory_hostname }} failed handshake/transfer check.
+      Output:
+      {{ item.stdout }}
+  loop: "{{ _wg_dump_results }}"
+  loop_control:
+    label: "{{ item.item }}"

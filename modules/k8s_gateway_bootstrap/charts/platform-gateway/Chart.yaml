@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-gateway
+description: Vendor-neutral platform Gateway API Gateway + Traefik enablement, with cert-manager annotation for per-listener Certificates.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

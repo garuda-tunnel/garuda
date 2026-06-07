@@ -1,0 +1,34 @@
+{{- if .Values.enableTraefikGatewayProvider }}
+# k3s ships Traefik with kubernetescrd + kubernetesingress providers only.
+# This HelmChartConfig overlays the bundled Traefik Helm release in
+# kube-system to also enable the kubernetesGateway provider, without
+# which Gateway API resources (including the Gateway above) sit forever
+# in "Waiting for controller" state.
+#
+# It is conditional (enableTraefikGatewayProvider: true by default) so
+# stands that already enable the provider out-of-band (custom Traefik
+# install, kustomize overlay, etc.) can set this false and avoid a
+# conflicting HelmChartConfig owner.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    providers:
+      kubernetesGateway:
+        enabled: true
+    # Traefik's Gateway API controller matches Gateway listener port
+    # against the entrypoint listen port, not the Service exposedPort.
+    # k3s ships websecure on :8443 (pod-internal) with the LB Service
+    # mapping :443 -> :8443. That makes a Gateway listener on port 443
+    # report PortUnavailable. Override the entrypoint to listen on
+    # :443 directly so Gateway listeners and IngressRoute consumers
+    # alike see the canonical HTTPS port. Service exposedPort follows
+    # via the same key.
+    ports:
+      websecure:
+        port: 443
+        exposedPort: 443
+{{- end }}

@@ -1,0 +1,36 @@
+{
+  "nodes": {
+    "hub": {
+      "host": "192.0.2.1",
+      "port": 22,
+      "user": "operator",
+      "ssh_pkey": "-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n-----END OPENSSH PRIVATE KEY-----\n",
+      "remote_targets": {"k3s": "127.0.0.1:6443"},
+      "kube_targets": {"k3s": {"kubeconfig_path": "/etc/rancher/k3s/k3s.yaml"}},
+      "required": true
+    },
+    "pt": {
+      "host": "192.0.2.2",
+      "port": 22,
+      "user": "operator",
+      "ssh_pkey": "-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n-----END OPENSSH PRIVATE KEY-----\n",
+      "remote_targets": {"k3s": "127.0.0.1:6443"},
+      "kube_targets": {"k3s": {"kubeconfig_path": "/etc/rancher/k3s/k3s.yaml"}},
+      "required": true
+    },
+    "de": {
+      "host": "192.0.2.3",
+      "port": 22,
+      "user": "operator",
+      "ssh_pkey": "-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n-----END OPENSSH PRIVATE KEY-----\n",
+      "remote_targets": {"k3s": "127.0.0.1:6443"},
+      "kube_targets": {"k3s": {"kubeconfig_path": "/etc/rancher/k3s/k3s.yaml"}},
+      "required": true
+    }
+  },
+  "daemon": {
+    "shutdown_grace_seconds": 10,
+    "auto_stop_idle_seconds": 300,
+    "materialize": true
+  }
+}

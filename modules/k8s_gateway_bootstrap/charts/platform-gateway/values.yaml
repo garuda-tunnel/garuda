@@ -1,0 +1,13 @@
+# Required: consumer module supplies via Terraform.
+# Empty defaults combined with values.schema.json minLength fail fast.
+gatewayName: ""
+gatewayClassName: ""
+clusterIssuerName: ""
+labels: {}
+# Required non-empty list of listener specs. Each entry produces one
+# HTTPS listener on port 443 with cert-manager-managed TLS.
+hostnames: []
+# When true, the chart renders a HelmChartConfig in kube-system that
+# enables Traefik's kubernetesGateway provider and moves websecure to
+# :443. Default true matches the k3s out-of-the-box state.
+enableTraefikGatewayProvider: true

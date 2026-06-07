@@ -1,0 +1,39 @@
+---
+# Phase 5: OSPF adjacency on k3s workloads.
+- name: "§5 — choose OSPF deployments per host"
+  ansible.builtin.set_fact:
+    _ospf_deployments: >-
+      {{ ['wg-pt', 'wg-de', 'wg-hub-ros', 'firezone', 'ipt-server'] if z2g_role == 'hub'
+         else (['wg-pt'] if z2g_role == 'pt'
+         else (['wg-de'] if z2g_role == 'de' else [])) }}
+
+- name: "§5 — read OSPF neighbor state from FRR sidecars"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda exec deploy/{{ item }} -c frr-sidecar --
+        vtysh -c 'show ip ospf neighbor'
+  become: true
+  register: _vtysh
+  changed_when: false
+  loop: "{{ _ospf_deployments }}"
+  loop_control:
+    label: "{{ item }}"
+  when: z2g_role in ['hub', 'pt', 'de']
+
+- name: "§5 — keep only executed OSPF results"
+  ansible.builtin.set_fact:
+    _vtysh_results: >-
+      {{ ((_vtysh | default({'results': []})).results)
+         | rejectattr('skipped', 'defined') | list }}
+
+- name: "§5 — assert at least one Full-state OSPF neighbor per sidecar"
+  ansible.builtin.assert:
+    that: item.stdout is search('Full/')
+    fail_msg: |
+      Sidecar {{ item.item }} on {{ inventory_hostname }} has no Full-state neighbor.
+      Output:
+      {{ item.stdout }}
+  loop: "{{ _vtysh_results }}"
+  loop_control:
+    label: "{{ item.item }}"
