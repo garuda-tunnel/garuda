@@ -150,4 +150,4 @@ The published image should follow the naming convention
 
 - [Module execution model](../reference/module-execution-model.md)
 - [Architecture — FRR sidecars](../concepts/architecture.md#frr-sidecars)
-- [`wireguard/kube` README](https://github.com/garuda-tunnel/garuda-wireguard/blob/main/kube/README.md)
+- [`wireguard/kube` README](https://github.com/garuda-tunnel/wireguard/blob/main/kube/README.md)

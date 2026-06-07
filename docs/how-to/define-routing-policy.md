@@ -11,7 +11,7 @@ Route all traffic matching country `DE` through the USA edge:
 
 ```hcl
 module "ipt_server_hub" {
-  source = "git::https://github.com/garuda-tunnel/garuda-router.git//kube?ref=v0.1.0"
+  source = "git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.1.0"
   # ...
   routes = [
     {

@@ -31,7 +31,7 @@ via the `.publish/public-workflows/publish-images.yml` matrix as
 
 OSPF-bearing modules consume the `frr-sidecar` library chart from OCI
 (`oci://ghcr.io/garuda-tunnel/charts/frr-sidecar`, published by the external repo
-`garuda-tunnel/garuda-frr-sidecar`) via a chart `dependencies:` entry with a pinned
+`garuda-tunnel/frr-sidecar`) via a chart `dependencies:` entry with a pinned
 version and `dependency_update = true` (per AGENTS.md), never by vendoring or
 inlining. The consumer chart owns `mergeOverwrite` injections of workload-
 specific OSPF invariants (interfaces list, passive interfaces,

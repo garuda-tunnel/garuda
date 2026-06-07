@@ -8,7 +8,7 @@ Garuda supports two tunnel types:
 
 > **Historical note.** Prior to the k3s migration, WireGuard was deployed as a Docker container
 > on bare Linux hosts via a compose-era module that has since been removed. The current pattern
-> is `wireguard/kube` (from `garuda-tunnel/garuda-wireguard`) for all Linux-side WireGuard endpoints.
+> is `wireguard/kube` (from `garuda-tunnel/wireguard`) for all Linux-side WireGuard endpoints.
 
 ## k3s-to-k3s tunnel (hub ↔ edge)
 
@@ -28,7 +28,7 @@ This is the pattern used in `examples/mini-site/garuda/main.tf` for the
 
 ```hcl
 module "wireguard_tunnel_eur" {
-  source   = "git::https://github.com/garuda-tunnel/garuda-wireguard.git//tunnel?ref=v0.2.0"
+  source   = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.2.0"
   name     = "eur"
   env_slug = var.env_slug
   subnet   = "192.0.2.16/28"
@@ -57,7 +57,7 @@ module "wireguard_tunnel_eur" {
 
 ```hcl
 module "wireguard_kube_eur" {
-  source = "git::https://github.com/garuda-tunnel/garuda-wireguard.git//kube?ref=v0.2.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.2.0"
 
   providers = {
     helm       = helm.eur
@@ -89,7 +89,7 @@ into the OSPF mesh.
 
 ```hcl
 module "wireguard_kube_hub_eur" {
-  source = "git::https://github.com/garuda-tunnel/garuda-wireguard.git//kube?ref=v0.2.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.2.0"
 
   providers = {
     helm       = helm.hub
@@ -148,7 +148,7 @@ Add `endpoint_host` on both peers so each side can initiate the handshake:
 
 ```hcl
 module "wireguard_tunnel_ros" {
-  source   = "git::https://github.com/garuda-tunnel/garuda-wireguard.git//tunnel?ref=v0.2.0"
+  source   = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.2.0"
   name     = "ros"
   env_slug = var.env_slug
   subnet   = "198.51.100.0/28"
@@ -171,7 +171,7 @@ module "wireguard_tunnel_ros" {
 
 ```hcl
 module "wireguard_kube_hub_ros" {
-  source = "git::https://github.com/garuda-tunnel/garuda-wireguard.git//kube?ref=v0.2.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.2.0"
 
   providers = {
     helm       = helm.hub
@@ -199,7 +199,7 @@ module "wireguard_kube_hub_ros" {
 
 ```hcl
 module "wireguard_routeros_ros" {
-  source = "git::https://github.com/garuda-tunnel/garuda-wireguard.git//routeros?ref=v0.2.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//routeros?ref=v0.2.0"
 
   hostname     = var.routeros.hostname
   config       = module.wireguard_tunnel_ros.peers["edge"]
@@ -217,8 +217,8 @@ RouterOS resource names are prefixed with `env_slug` (e.g. `prod-ros`).
 
 ## Further reading
 
-- [`wireguard/tunnel` README](https://github.com/garuda-tunnel/garuda-wireguard/blob/main/tunnel/README.md)
-- [`wireguard/kube` README](https://github.com/garuda-tunnel/garuda-wireguard/blob/main/kube/README.md)
-- [`wireguard/routeros` README](https://github.com/garuda-tunnel/garuda-wireguard/blob/main/routeros/README.md)
+- [`wireguard/tunnel` README](https://github.com/garuda-tunnel/wireguard/blob/main/tunnel/README.md)
+- [`wireguard/kube` README](https://github.com/garuda-tunnel/wireguard/blob/main/kube/README.md)
+- [`wireguard/routeros` README](https://github.com/garuda-tunnel/wireguard/blob/main/routeros/README.md)
 - [How to add a workload](add-workload.md)
 - [Architecture — WireGuard naming split](../concepts/architecture.md#wireguard-tunnel-naming-split)

@@ -11,10 +11,10 @@ tofu -chdir=modules/yc_compute_host test
 tofu -chdir=modules/gcp_compute_host test
 
 # Component module tests (run in their respective external repos)
-# garuda-tunnel/garuda-wireguard: tofu -chdir=tunnel test && tofu -chdir=kube test && tofu -chdir=routeros test
-# garuda-tunnel/garuda-firezone:  tofu -chdir=kube test
-# garuda-tunnel/garuda-router:    tofu -chdir=kube test
-# garuda-tunnel/garuda-border-router: tofu test
+# garuda-tunnel/wireguard: tofu -chdir=tunnel test && tofu -chdir=kube test && tofu -chdir=routeros test
+# garuda-tunnel/firezone:  tofu -chdir=kube test
+# garuda-tunnel/router:    tofu -chdir=kube test
+# garuda-tunnel/border-router: tofu test
 ```
 
 ## Run live smoke

@@ -1,7 +1,7 @@
 # Routing Policy Reference
 
 This page documents the exact `routes` and `pinning_egress` schemas consumed by
-`ipt_server/kube` (source: `garuda-tunnel/garuda-router`).
+`ipt_server/kube` (source: `garuda-tunnel/router`).
 
 ## routes
 
@@ -90,7 +90,7 @@ pinning_ttl = 86400   # 24 hours
 
 ## Full variable source
 
-Canonical source: [`garuda-router/kube/variables.tf`](https://github.com/garuda-tunnel/garuda-router/blob/main/kube/variables.tf).
+Canonical source: [`garuda-router/kube/variables.tf`](https://github.com/garuda-tunnel/router/blob/main/kube/variables.tf).
 
 ## Related
 

@@ -29,13 +29,13 @@ bootstrapped via `modules/k3s_cloud_init` cloud-init user-data.
 by RouterOS (shared namespace). `wireguard/kube` and `wireguard/routeros` do not
 declare `env_slug`; they receive the scoped names from `wireguard/tunnel` outputs.
 
-Source: `garuda-tunnel/garuda-wireguard` (`git::https://github.com/garuda-tunnel/garuda-wireguard.git`)
+Source: `garuda-tunnel/wireguard` (`git::https://github.com/garuda-tunnel/wireguard.git`)
 
 | Module                  | Purpose                                                    | `env_slug`   | README                                                                                         |
 |-------------------------|------------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
-| `wireguard/tunnel`      | Key generation and per-peer config for a tunnel pair       | **required** | [README](https://github.com/garuda-tunnel/garuda-wireguard/blob/main/tunnel/README.md)              |
-| `wireguard/kube`        | Deploy a WireGuard peer on k3s (Kubernetes)                | not used     | [README](https://github.com/garuda-tunnel/garuda-wireguard/blob/main/kube/README.md)                |
-| `wireguard/routeros`    | RouterOS WireGuard tunnel, endpoint bypass, OSPF           | not used     | [README](https://github.com/garuda-tunnel/garuda-wireguard/blob/main/routeros/README.md)            |
+| `wireguard/tunnel`      | Key generation and per-peer config for a tunnel pair       | **required** | [README](https://github.com/garuda-tunnel/wireguard/blob/main/tunnel/README.md)              |
+| `wireguard/kube`        | Deploy a WireGuard peer on k3s (Kubernetes)                | not used     | [README](https://github.com/garuda-tunnel/wireguard/blob/main/kube/README.md)                |
+| `wireguard/routeros`    | RouterOS WireGuard tunnel, endpoint bypass, OSPF           | not used     | [README](https://github.com/garuda-tunnel/wireguard/blob/main/routeros/README.md)            |
 
 ### WireGuard naming split
 
@@ -52,15 +52,15 @@ These modules live in external component repositories and are consumed via git r
 
 | Module             | Source                                                                        | Purpose                                                    | README                                                                                       |
 |--------------------|-------------------------------------------------------------------------------|------------------------------------------------------------|----------------------------------------------------------------------------------------------|
-| `firezone/kube`    | `git::https://github.com/garuda-tunnel/garuda-firezone.git//kube?ref=v0.2.0`       | Firezone deployment on the hub k3s                         | [README](https://github.com/garuda-tunnel/garuda-firezone/blob/main/kube/README.md)               |
-| `ipt_server/kube`  | `git::https://github.com/garuda-tunnel/garuda-router.git//kube?ref=v0.1.0`         | ipt_server + PowerDNS deployment on the hub k3s            | [README](https://github.com/garuda-tunnel/garuda-router/blob/main/kube/README.md)                 |
-| `border_router`    | `git::https://github.com/garuda-tunnel/garuda-border-router.git?ref=v0.1.0`        | Border egress pod — dummy0 /32 advertised via OSPF         | [README](https://github.com/garuda-tunnel/garuda-border-router/blob/main/README.md)               |
+| `firezone/kube`    | `git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v0.2.0`       | Firezone deployment on the hub k3s                         | [README](https://github.com/garuda-tunnel/firezone/blob/main/kube/README.md)               |
+| `ipt_server/kube`  | `git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.1.0`         | ipt_server + PowerDNS deployment on the hub k3s            | [README](https://github.com/garuda-tunnel/router/blob/main/kube/README.md)                 |
+| `border_router`    | `git::https://github.com/garuda-tunnel/border-router.git?ref=v0.1.0`        | Border egress pod — dummy0 /32 advertised via OSPF         | [README](https://github.com/garuda-tunnel/border-router/blob/main/README.md)               |
 
 ## Library modules
 
 | Module              | Source                                    | Purpose                                                    | README                                                                                       |
 |---------------------|-------------------------------------------|------------------------------------------------------------|----------------------------------------------------------------------------------------------|
-| `frr-sidecar`       | `oci://ghcr.io/garuda-tunnel/charts/frr-sidecar` | Library Helm chart — FRR sidecar for OSPF-bearing pods   | [README](https://github.com/garuda-tunnel/garuda-frr-sidecar/blob/main/README.md)                 |
+| `frr-sidecar`       | `oci://ghcr.io/garuda-tunnel/charts/frr-sidecar` | Library Helm chart — FRR sidecar for OSPF-bearing pods   | [README](https://github.com/garuda-tunnel/frr-sidecar/blob/main/README.md)                 |
 
 ## Required `env_slug` summary
 

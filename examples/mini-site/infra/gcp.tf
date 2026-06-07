@@ -3,7 +3,7 @@ module "k3s_init_edges" {
 
   source = "./modules/k3s_cloud_init"
 
-  # The WireGuard pod template (garuda-tunnel/garuda-wireguard, kube/charts/wireguard/templates/deployment.yaml)
+  # The WireGuard pod template (garuda-tunnel/wireguard, kube/charts/wireguard/templates/deployment.yaml)
   # sets three pod-scope sysctls inside its netns:
   #   * net.ipv4.ip_forward=1                — required so the pod can
   #     forward traffic between its wg interface and the backbone NAD.

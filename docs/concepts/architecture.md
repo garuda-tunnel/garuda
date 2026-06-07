@@ -70,12 +70,12 @@ CIDRs configured in `modules/garuda_k8s`.
 
 | Module                  | Source                                                                   | Role                                                    |
 |-------------------------|--------------------------------------------------------------------------|---------------------------------------------------------|
-| `wireguard/tunnel`      | `git::https://github.com/garuda-tunnel/garuda-wireguard.git//tunnel?ref=v0.2.0` | WireGuard key generation and per-peer config            |
-| `wireguard/kube`        | `git::https://github.com/garuda-tunnel/garuda-wireguard.git//kube?ref=v0.2.0`   | WireGuard deployment on k3s (Kubernetes)                |
-| `wireguard/routeros`    | `git::https://github.com/garuda-tunnel/garuda-wireguard.git//routeros?ref=v0.2.0` | RouterOS WireGuard tunnel, endpoint bypass, and OSPF |
-| `firezone/kube`         | `git::https://github.com/garuda-tunnel/garuda-firezone.git//kube?ref=v0.2.0`   | Firezone deployment on the hub k3s                      |
-| `ipt_server/kube`       | `git::https://github.com/garuda-tunnel/garuda-router.git//kube?ref=v0.1.0`     | ipt_server + PowerDNS deployment on the hub k3s         |
-| `border_router`         | `git::https://github.com/garuda-tunnel/garuda-border-router.git?ref=v0.1.0`    | Border egress pod — dummy0 /32 advertised via OSPF      |
+| `wireguard/tunnel`      | `git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.2.0` | WireGuard key generation and per-peer config            |
+| `wireguard/kube`        | `git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.2.0`   | WireGuard deployment on k3s (Kubernetes)                |
+| `wireguard/routeros`    | `git::https://github.com/garuda-tunnel/wireguard.git//routeros?ref=v0.2.0` | RouterOS WireGuard tunnel, endpoint bypass, and OSPF |
+| `firezone/kube`         | `git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v0.2.0`   | Firezone deployment on the hub k3s                      |
+| `ipt_server/kube`       | `git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.1.0`     | ipt_server + PowerDNS deployment on the hub k3s         |
+| `border_router`         | `git::https://github.com/garuda-tunnel/border-router.git?ref=v0.1.0`    | Border egress pod — dummy0 /32 advertised via OSPF      |
 
 Full variable contracts: [`docs/reference/modules.md`](../reference/modules.md).
 
@@ -88,7 +88,7 @@ image.
 
 All OSPF-bearing modules consume the `frr-sidecar` Helm chart from
 `oci://ghcr.io/garuda-tunnel/charts` via a `dependencies:` entry in their own
-`Chart.yaml`. The library chart lives in the external `garuda-tunnel/garuda-frr-sidecar`
+`Chart.yaml`. The library chart lives in the external `garuda-tunnel/frr-sidecar`
 repo and is published as an OCI package to the public ghcr registry.
 No sidecar container spec is inlined; no copy of the library chart is vendored.
 

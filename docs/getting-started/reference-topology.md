@@ -63,7 +63,7 @@ Kubernetes workload modules depend only on the same-cluster `garuda_k8s` module:
 
 ```hcl
 module "wireguard_kube_hub" {
-  source = "git::https://github.com/garuda-tunnel/garuda-wireguard.git//kube?ref=v0.2.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.2.0"
   # inputs ...
   depends_on = [module.garuda_k8s_hub]
 }

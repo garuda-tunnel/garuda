@@ -99,11 +99,11 @@ internally (`transit_provider=true`, `default_originate=true`,
 ## FRR sidecar library chart
 
 All OSPF intent is rendered into `frr.conf` by the `frr-sidecar` Helm chart
-published to `oci://ghcr.io/garuda-tunnel/charts` (source: `garuda-tunnel/garuda-frr-sidecar`).
+published to `oci://ghcr.io/garuda-tunnel/charts` (source: `garuda-tunnel/frr-sidecar`).
 Consumer charts declare it as a `dependencies:` entry and call its named templates
 (`frr-sidecar.container`, `frr-sidecar.volume`, `frr-sidecar.configmap`).
 
 For the full FRR config rendering specification, see:
 
-- [garuda-tunnel/garuda-frr-sidecar](https://github.com/garuda-tunnel/garuda-frr-sidecar)
+- [garuda-tunnel/frr-sidecar](https://github.com/garuda-tunnel/frr-sidecar)
 - [AGENTS.md — FRR sidecar reuse rule](../../AGENTS.md)

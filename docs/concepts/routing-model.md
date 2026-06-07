@@ -15,7 +15,7 @@ OSPF intent is expressed as a structured `ospf` object in each workload module's
 No per-workload `frr.conf` template is maintained by hand.
 
 The FRR sidecar is delivered by the `frr-sidecar` Helm chart published to
-`oci://ghcr.io/garuda-tunnel/charts` (source: `garuda-tunnel/garuda-frr-sidecar`), consumed
+`oci://ghcr.io/garuda-tunnel/charts` (source: `garuda-tunnel/frr-sidecar`), consumed
 via a `dependencies:` entry in each workload chart. No sidecar container spec is
 inlined or vendored.
 

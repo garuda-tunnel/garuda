@@ -62,7 +62,7 @@ dependency must be the **same-cluster `garuda_k8s` module only**:
 
 ```hcl
 module "wireguard_kube_hub" {
-  source = "git::https://github.com/garuda-tunnel/garuda-wireguard.git//kube?ref=v0.2.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.2.0"
   # ... inputs ...
   depends_on = [module.garuda_k8s_hub]
 }
@@ -91,12 +91,12 @@ repositories:
 
 | Component         | Repository                          | Image                                     |
 |-------------------|-------------------------------------|-------------------------------------------|
-| WireGuard         | `garuda-tunnel/garuda-wireguard`          | `ghcr.io/garuda-tunnel/garuda-wireguard`        |
-| Firezone          | `garuda-tunnel/garuda-firezone`           | `ghcr.io/garuda-tunnel/garuda-firezone`         |
-| Router (ipt_server) | `garuda-tunnel/garuda-router`           | `ghcr.io/garuda-tunnel/garuda-ipt-server`       |
-| Border Router     | `garuda-tunnel/garuda-border-router`      | `ghcr.io/garuda-tunnel/garuda-border-router`    |
-| conntrack-log     | `garuda-tunnel/garuda-audit`              | `ghcr.io/garuda-tunnel/garuda-conntrack-log`    |
-| FRR sidecar       | `garuda-tunnel/garuda-frr-sidecar`        | `oci://ghcr.io/garuda-tunnel/charts/frr-sidecar` |
+| WireGuard         | `garuda-tunnel/wireguard`          | `ghcr.io/garuda-tunnel/garuda-wireguard`        |
+| Firezone          | `garuda-tunnel/firezone`           | `ghcr.io/garuda-tunnel/garuda-firezone`         |
+| Router (ipt_server) | `garuda-tunnel/router`           | `ghcr.io/garuda-tunnel/garuda-ipt-server`       |
+| Border Router     | `garuda-tunnel/border-router`      | `ghcr.io/garuda-tunnel/garuda-border-router`    |
+| conntrack-log     | `garuda-tunnel/audit`              | `ghcr.io/garuda-tunnel/garuda-conntrack-log`    |
+| FRR sidecar       | `garuda-tunnel/frr-sidecar`        | `oci://ghcr.io/garuda-tunnel/charts/frr-sidecar` |
 
 The umbrella publishes no workload images. Image references are defaulted in each
 component module's `variables.tf`.
