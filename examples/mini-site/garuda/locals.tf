@@ -234,7 +234,11 @@ locals {
       interfaces         = ["backbone", module.wireguard_tunnel_hub_ros.peers["core"].kernel_ifname]
       passive_interfaces = []
       default_originate  = false
-      redistribute       = []
+      # Redistribute kernel routes so RouterOS learns backbone and wg-pt
+      # subnets via OSPF from the hub-ros peer. Without this, RouterOS
+      # only sees its own WireGuard subnet; backbone/wg-* subnets that
+      # live in the hub kernel table are invisible to it.
+      redistribute       = ["kernel"]
     }
   }
 }
