@@ -23,9 +23,17 @@
   changed_when: "'has been successfully initialized' in _tf_init.stdout"
   failed_when: _tf_init.rc != 0
 
+# -parallelism=1 works around a terraform-provider-helm race: multiple
+# helm_release resources that resolve to the SAME deduplicated chart
+# directory (all wireguard_kube* modules share one git-source checkout) run
+# `helm dependency update` concurrently on a shared `charts/.../tmpcharts-*`
+# dir and collide ("could not download oci://.../frr-sidecar: ... no such
+# file or directory"). The provider has no per-instance dep-build isolation
+# and the upstream issue is won't-fix (hashicorp/terraform-provider-helm
+# #767, #551). Vendoring the dep is forbidden by AGENTS.md, so serialize.
 - name: "§2 — terragrunt plan"
   ansible.builtin.command:
-    cmd: terragrunt plan -input=false
+    cmd: terragrunt plan -input=false -parallelism=1
     chdir: "{{ z2g_terraform_dir }}"
   register: _tf_plan
   changed_when: false
@@ -33,7 +41,7 @@
 
 - name: "§2 — terragrunt apply"
   ansible.builtin.command:
-    cmd: terragrunt apply -input=false -auto-approve
+    cmd: terragrunt apply -input=false -auto-approve -parallelism=1
     chdir: "{{ z2g_terraform_dir }}"
   register: _tf_apply
   changed_when: "'Apply complete' in _tf_apply.stdout"
