@@ -31,8 +31,8 @@ variable "border_subnet" {
 
 variable "install_cni" {
   description = <<EOT
-When true, the chart installs Multus and Whereabouts using k3s-native CNI
-paths. Set to false if both are pre-installed by the cluster operator.
+When true, the chart installs Multus using k3s-native CNI paths. Set to
+false if it is pre-installed by the cluster operator.
 EOT
   type        = bool
   default     = true

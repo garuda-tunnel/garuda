@@ -14,13 +14,9 @@
     "versions": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["multus_image", "whereabouts_image"],
+      "required": ["multus_image"],
       "properties": {
         "multus_image": {
-          "type": "string",
-          "minLength": 1
-        },
-        "whereabouts_image": {
           "type": "string",
           "minLength": 1
         }

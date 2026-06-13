@@ -13,7 +13,7 @@ metadata:
 data:
   backbone_subnet: "10.42.0.0/24"
   border_subnet: "10.43.0.0/24"
-  chart_version: "0.2.2"
+  chart_version: "0.3.0"
 
 ---
 # Source: garuda/templates/nad-backbone.yaml
@@ -37,9 +37,9 @@ spec:
       "isGateway": false,
       "ipMasq": false,
       "ipam": {
-        "type": "whereabouts",
-        "configuration_path": "/var/lib/rancher/k3s/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf",
-        "range": "10.42.0.0/24"
+        "type": "host-local",
+        "dataDir": "/var/run/cni/backbone",
+        "ranges": [[{ "subnet": "10.42.0.0/24" }]]
       }
     }
 
@@ -88,10 +88,12 @@ spec:
       "isGateway": true,
       "ipMasq": true,
       "ipam": {
-        "type": "whereabouts",
-        "configuration_path": "/var/lib/rancher/k3s/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf",
-        "gateway": "10.43.0.1",
-        "range_start": "10.43.0.2",
-        "range": "10.43.0.0/24"
+        "type": "host-local",
+        "dataDir": "/var/run/cni/border",
+        "ranges": [[{
+          "subnet": "10.43.0.0/24",
+          "rangeStart": "10.43.0.2",
+          "gateway": "10.43.0.1"
+        }]]
       }
     }

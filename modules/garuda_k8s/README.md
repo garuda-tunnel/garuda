@@ -3,8 +3,7 @@
 Bootstraps one Kubernetes namespace with the shared transport plumbing
 required by every Garuda edge workload: namespace, two
 `NetworkAttachmentDefinition` resources (`backbone`, `border`), a network
-metadata `ConfigMap`, and optionally the Multus and Whereabouts CNI
-DaemonSets.
+metadata `ConfigMap`, and optionally the Multus CNI DaemonSet.
 
 The module is a thin wrapper over `helm_release` rendering the bundled
 chart at `${path.module}/charts/garuda`.
@@ -14,9 +13,9 @@ chart at `${path.module}/charts/garuda`.
 | Variable          | Default     | Description |
 |-------------------|-------------|-------------|
 | `namespace`       | `"garuda"`  | DNS-1123 label for the Kubernetes namespace. |
-| `backbone_subnet` | (required)  | CIDR for the `backbone` NAD's Whereabouts IPAM, e.g. `10.42.0.0/24`. |
-| `border_subnet`   | (required)  | CIDR for the `border` NAD's Whereabouts IPAM, e.g. `10.43.0.0/24`. |
-| `install_cni`     | `true`      | When `true`, install Multus and Whereabouts from vendored manifests. Set `false` when CNI is pre-installed. |
+| `backbone_subnet` | (required)  | CIDR for the `backbone` NAD's host-local IPAM, e.g. `10.42.0.0/24`. |
+| `border_subnet`   | (required)  | CIDR for the `border` NAD's host-local IPAM, e.g. `10.43.0.0/24`. |
+| `install_cni`     | `true`      | When `true`, install Multus from vendored manifests. Set `false` when CNI is pre-installed. |
 
 ## Outputs
 
@@ -46,7 +45,7 @@ module "garuda_k8s_pt" {
 ## What this module does NOT do
 
 - No workload pods. See `modules/wireguard/kube` for the WireGuard endpoint.
-- No host CNI binaries install on the node — that is `modules/k3s_cloud_init`'s job. This module only installs the in-cluster Multus / Whereabouts DaemonSets.
-- No `hostNetwork` for Garuda workload pods. The CNI DaemonSets installed when `install_cni = true` do use `hostNetwork` because that is how CNI plugin binaries are delivered to the kubelet; that exception is scoped to `kube-system` CNI installation, not application workloads.
+- No host CNI binaries install on the node — that is `modules/k3s_cloud_init`'s job. This module only installs the in-cluster Multus DaemonSet.
+- No `hostNetwork` for Garuda workload pods. The Multus CNI DaemonSet installed when `install_cni = true` does use `hostNetwork` because that is how the CNI plugin binary is delivered to the kubelet; that exception is scoped to `kube-system` CNI installation, not application workloads.
 - No kubeconfig fetch. Consumers fetch `/etc/rancher/k3s/k3s.yaml` over SSH and rewrite the apiserver `server:` URL to a local SSH forward — see the consumer Terragrunt unit's `before_hook` (the `examples/mini-site/garuda` consumer uses `garuda-tunnel` for this).
 - No cluster-init / multi-node clustering. Each edge runs an independent single-node k3s server.

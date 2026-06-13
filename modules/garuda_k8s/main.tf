@@ -21,8 +21,8 @@ resource "kubernetes_namespace_v1" "garuda" {
   }
 }
 
-# garuda-cni installs Multus and Whereabouts DaemonSets. Helm `--wait`
-# blocks until both DaemonSets are Ready, which means the
+# garuda-cni installs the Multus DaemonSet. Helm `--wait`
+# blocks until the Multus DaemonSet is Ready, which means the
 # NetworkAttachmentDefinition CRD has been registered with the API
 # server by the Multus init container by the time control returns.
 # The main garuda chart (NADs + ConfigMap) then applies cleanly. This

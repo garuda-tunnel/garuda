@@ -2,7 +2,7 @@
 # Helm-level tests for modules/garuda_k8s.
 # Runs `helm lint` and `helm template` for both bundled charts:
 #   * garuda      — NetworkAttachmentDefinitions + network-meta ConfigMap.
-#   * garuda-cni  — vendored Multus + Whereabouts DaemonSets, gated by
+#   * garuda-cni  — vendored Multus DaemonSet, gated by
 #                   installCni for the operator-already-installed case.
 #
 # Scenarios diffed against tests/golden/*.yaml:
@@ -55,28 +55,33 @@ for expected in \
   'mountPath: /opt/cni/bin' \
   'path: /var/lib/rancher/k3s/data' \
   '"binDir": "/var/lib/rancher/k3s/data/cni"' \
-  'image: "rancher/hardened-multus-thick:v4.2.4-build20260310"' \
-  'image: "rancher/hardened-whereabouts:v0.9.3-build20260511"' \
-  '- name: CNI_BIN_DIR' \
-  'value: /host/var/lib/rancher/k3s/data/cni' \
-  '- name: CNI_CONF_DIR' \
-  'value: /host/var/lib/rancher/k3s/agent/etc/cni/net.d'; do
+  'image: "rancher/hardened-multus-thick:v4.2.4-build20260310"'; do
   if [[ "${cni_render}" != *"${expected}"* ]]; then
-    echo "garuda-cni-default missing expected Whereabouts setting: ${expected}" >&2
+    echo "garuda-cni-default missing expected CNI setting: ${expected}" >&2
     exit 1
   fi
 done
 
 garuda_render="${renders["garuda"]}"
 for expected in \
-  '"configuration_path": "/var/lib/rancher/k3s/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf"' \
-  '"gateway": "10.43.0.1"' \
-  '"range_start": "10.43.0.2"'; do
+  '"type": "host-local"' \
+  '"dataDir": "/var/run/cni/backbone"' \
+  '"subnet": "10.42.0.0/24"' \
+  '"dataDir": "/var/run/cni/border"' \
+  '"subnet": "10.43.0.0/24"' \
+  '"rangeStart": "10.43.0.2"' \
+  '"gateway": "10.43.0.1"'; do
   if [[ "${garuda_render}" != *"${expected}"* ]]; then
-    echo "garuda missing expected Whereabouts setting: ${expected}" >&2
+    echo "garuda missing expected host-local setting: ${expected}" >&2
     exit 1
   fi
 done
+
+# Negative assertion: whereabouts must be fully gone from the garuda render.
+if [[ "${garuda_render}" == *"whereabouts"* ]]; then
+  echo "garuda render still references whereabouts" >&2
+  exit 1
+fi
 
 for scenario in "${!renders[@]}"; do
   out="${renders[${scenario}]}"

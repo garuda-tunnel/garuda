@@ -15,8 +15,8 @@ spec:
       "isGateway": false,
       "ipMasq": false,
       "ipam": {
-        "type": "whereabouts",
-        "configuration_path": "/var/lib/rancher/k3s/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf",
-        "range": {{ .Values.backboneSubnet | quote }}
+        "type": "host-local",
+        "dataDir": "/var/run/cni/backbone",
+        "ranges": [[{ "subnet": {{ .Values.backboneSubnet | quote }} }]]
       }
     }

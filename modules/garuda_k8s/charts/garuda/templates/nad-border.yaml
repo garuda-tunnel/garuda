@@ -38,10 +38,12 @@ spec:
       "isGateway": true,
       "ipMasq": true,
       "ipam": {
-        "type": "whereabouts",
-        "configuration_path": "/var/lib/rancher/k3s/agent/etc/cni/net.d/whereabouts.d/whereabouts.conf",
-        "gateway": {{ .Values.borderGateway | quote }},
-        "range_start": {{ .Values.borderRangeStart | quote }},
-        "range": {{ .Values.borderSubnet | quote }}
+        "type": "host-local",
+        "dataDir": "/var/run/cni/border",
+        "ranges": [[{
+          "subnet": {{ .Values.borderSubnet | quote }},
+          "rangeStart": {{ .Values.borderRangeStart | quote }},
+          "gateway": {{ .Values.borderGateway | quote }}
+        }]]
       }
     }
