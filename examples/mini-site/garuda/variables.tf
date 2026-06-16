@@ -146,7 +146,7 @@ EOT
 variable "border_router_image" {
   description = "egress-setup image for border_router. Overridden at the stand (test-config) to pin a locally-built/imported tag, mirroring var.frr_sidecar_image / var.ipt_powerdns_image."
   type        = string
-  default     = "ghcr.io/garuda-tunnel/garuda-border-router:latest"
+  default     = ""
 }
 
 # --- Geo routing ---
@@ -246,33 +246,33 @@ variable "routeros_lan_gateway" {
 
 # --- Workload container images ---
 variable "wireguard_image" {
-  description = "Docker image for the WireGuard container workload."
+  description = "Docker image for the WireGuard container workload. Leave empty (default) to let the chart pin its own image at :.Chart.Version; set to override (never :latest)."
   type        = string
-  default     = "ghcr.io/garuda-tunnel/garuda-wireguard:latest"
+  default     = ""
 }
 
 variable "frr_sidecar_image" {
-  description = "Docker image for the FRR sidecar container used by Kubernetes WireGuard workloads."
+  description = "Docker image for the FRR sidecar container used by Kubernetes WireGuard workloads. Leave empty (default) to let the chart pin its own image at :.Chart.Version; set to override (never :latest)."
   type        = string
-  default     = "ghcr.io/garuda-tunnel/garuda-frr-sidecar:latest"
+  default     = ""
 }
 
 variable "fz_firezone_image" {
-  description = "Docker image for the Firezone container workload."
+  description = "Docker image for the Firezone container workload. Leave empty (default) to let the chart pin its own image at :.Chart.Version; set to override (never :latest)."
   type        = string
-  default     = "ghcr.io/garuda-tunnel/garuda-firezone:latest"
+  default     = ""
 }
 
 variable "ipt_server_image" {
-  description = "Docker image for the ipt_server container workload."
+  description = "Docker image for the ipt_server container workload. Leave empty (default) to let the chart pin its own image at :.Chart.Version; set to override (never :latest)."
   type        = string
-  default     = "ghcr.io/garuda-tunnel/garuda-ipt-server:latest"
+  default     = ""
 }
 
 variable "ipt_powerdns_image" {
-  description = "Docker image for the PowerDNS container used by ipt_server."
+  description = "Docker image for the PowerDNS container used by ipt_server. Leave empty (default) to let the chart pin its own image at :.Chart.Version; set to override (never :latest)."
   type        = string
-  default     = "ghcr.io/garuda-tunnel/garuda-powerdns:latest"
+  default     = ""
 }
 
 # --- Path to garuda-tunnel state JSON ---
