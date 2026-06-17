@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/garuda-tunnel/garuda-internal/compare/v0.4.0...v0.5.0) (2026-06-17)
+
+
+### Features
+
+* **garuda:** enable pod-reaper part-of label filter by default ([cf1ab61](https://github.com/garuda-tunnel/garuda-internal/commit/cf1ab61e97f5d294dcf56ac5f515021a78ed164b))
+
 ## [0.4.0](https://github.com/garuda-tunnel/garuda-internal/compare/v0.3.0...v0.4.0) (2026-06-17)
 
 

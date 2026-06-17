@@ -315,7 +315,7 @@ module "firezone_kube" {
 # --- ipt_server (hub, k8s) ---
 
 module "ipt_server_kube" {
-  source = "git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.4.0"
+  source = "git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.4.2"
 
   providers = {
     helm       = helm.hub
