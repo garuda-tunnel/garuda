@@ -5,3 +5,40 @@ backboneSubnet: ""
 borderSubnet: ""
 borderGateway: ""
 borderRangeStart: ""
+
+multusReadiness:
+  enabled: true
+  # External image, pinned by digest. Updates are out-of-band (Renovate or manual).
+  image: "bitnami/kubectl:1.36.2@sha256:08afc880eea24f36572644ccae85fb3e573a6ff1b7161135a3ae9a5eab222df2"
+  rolloutTimeout: "300s"
+  nodeReadyTimeout: "120s"
+  # 5-minute fail-fast per AC2: backoffLimit=2 without this could block for ~21 min.
+  activeDeadlineSeconds: 360
+  # Extended TTL for operator log access after Job completion.
+  ttlSecondsAfterFinished: 300
+
+podReaper:
+  enabled: true
+  # External image, pinned by digest. Updates are out-of-band (Renovate or manual).
+  image: "target/pod-reaper:2.14.0@sha256:b8f908a99d9c503220f195d7f706e8ee0b012954ea10d263d6c219b042d196ec"
+  maxUnready: "120s"
+  evict: "true"
+  gracePeriod: "30s"
+  schedule: "@every 30s"
+  # requireLabelKey / requireLabelValues: disabled by default so pod-reaper
+  # selects all unready pods in the namespace (consumer charts such as
+  # wireguard/firezone/router/border-router do not emit
+  # app.kubernetes.io/part-of=garuda).
+  requireLabelKey: ""
+  requireLabelValues: ""
+  # excludeLabelKey / excludeLabelValues: self-reap protection — pod-reaper
+  # must not evict itself.
+  excludeLabelKey: "app.kubernetes.io/name"
+  excludeLabelValues: "pod-reaper"
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "16Mi"
+    limits:
+      cpu: "50m"
+      memory: "64Mi"

@@ -173,8 +173,8 @@ variable "cert_manager_email" {
     allow_reserved_contact_domain=true and staging ACME so the
     placeholder remains apply-able for examples and tests.
   EOT
-  type    = string
-  default = "ops@example.net"
+  type        = string
+  default     = "ops@example.net"
 }
 
 variable "cert_manager_acme_server" {
@@ -186,8 +186,8 @@ variable "cert_manager_acme_server" {
     `https://acme-v02.api.letsencrypt.org/directory` via
     inputs.tfvars.yaml or SOPS.
   EOT
-  type    = string
-  default = "https://acme-staging-v02.api.letsencrypt.org/directory"
+  type        = string
+  default     = "https://acme-staging-v02.api.letsencrypt.org/directory"
 }
 
 variable "cert_manager_allow_reserved_contact_domain" {
@@ -199,8 +199,8 @@ variable "cert_manager_allow_reserved_contact_domain" {
     a real email + production ACME so any placeholder leak fails fast
     at apply.
   EOT
-  type    = bool
-  default = true
+  type        = bool
+  default     = true
 }
 
 variable "firezone_oidc_google_client_id" { type = string }

@@ -17,3 +17,8 @@ output "border_nad_name" {
   description = "Name of the NetworkAttachmentDefinition for the border."
   value       = "border"
 }
+
+output "multus_ready_id" {
+  description = "Opaque id of the null_resource gate consumers add to depends_on (Sub-project D Layer 2)."
+  value       = null_resource.multus_ready.id
+}

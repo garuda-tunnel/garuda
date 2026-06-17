@@ -23,6 +23,67 @@
     "borderRangeStart": {
       "type": "string",
       "minLength": 7
+    },
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "multusReadiness": {
+      "type": "object",
+      "required": ["enabled", "image"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": {
+          "type": "string",
+          "pattern": "^[a-z0-9./_-]+(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}$"
+        },
+        "rolloutTimeout": { "type": "string", "pattern": "^[0-9]+[smh]$" },
+        "nodeReadyTimeout": { "type": "string", "pattern": "^[0-9]+[smh]$" },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 60, "maximum": 3600 },
+        "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "podReaper": {
+      "type": "object",
+      "required": ["enabled", "image"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": {
+          "type": "string",
+          "pattern": "^[a-z0-9./_-]+(:[A-Za-z0-9._-]+)?@sha256:[a-f0-9]{64}$"
+        },
+        "maxUnready": { "type": "string", "pattern": "^[0-9]+[smh]$" },
+        "evict": { "type": "string", "enum": ["true", "false"] },
+        "gracePeriod": { "type": "string" },
+        "schedule": { "type": "string" },
+        "requireLabelKey": { "type": "string" },
+        "requireLabelValues": { "type": "string" },
+        "excludeLabelKey": { "type": "string" },
+        "excludeLabelValues": { "type": "string" },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "cpu": { "type": "string" },
+                "memory": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

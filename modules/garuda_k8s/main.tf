@@ -45,6 +45,32 @@ resource "helm_release" "garuda_cni" {
   ]
 }
 
+# Layer 2 of Sub-project D: TF-side ordering gate.
+# Waits for kube-multus-ds rollout + all nodes Ready before downstream
+# helm_releases (in this module AND consumer modules) fire. Consumers read
+# output.multus_ready_id and add it to their depends_on.
+resource "null_resource" "multus_ready" {
+  triggers = {
+    garuda_cni_release = helm_release.garuda_cni.id
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/sh", "-c"]
+    environment = {
+      KUBECONFIG = var.kubeconfig_path
+    }
+    command = <<-EOT
+      set -eu
+      kubectl --kubeconfig="$KUBECONFIG" rollout status \
+        ds/kube-multus-ds -n kube-system --timeout=300s
+      kubectl --kubeconfig="$KUBECONFIG" wait \
+        --for=condition=Ready node --all --timeout=300s
+    EOT
+  }
+
+  depends_on = [helm_release.garuda_cni]
+}
+
 resource "helm_release" "garuda" {
   name             = "garuda"
   namespace        = kubernetes_namespace_v1.garuda.metadata[0].name
@@ -64,5 +90,6 @@ resource "helm_release" "garuda" {
   # Hard ordering: the NetworkAttachmentDefinition CRD is registered
   # by Multus inside garuda_cni; submitting the NADs before that release
   # is Ready produces `no matches for kind "NetworkAttachmentDefinition"`.
-  depends_on = [helm_release.garuda_cni]
+  # Belt-and-suspenders: also gate on null_resource.multus_ready (Layer 2).
+  depends_on = [helm_release.garuda_cni, null_resource.multus_ready]
 }

@@ -37,3 +37,8 @@ EOT
   type        = bool
   default     = true
 }
+
+variable "kubeconfig_path" {
+  description = "Absolute path to kubeconfig file used by the Multus-readiness local-exec gate. Must match the kubeconfig used by the helm/kubernetes providers."
+  type        = string
+}

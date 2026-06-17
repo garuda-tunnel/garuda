@@ -238,7 +238,7 @@ locals {
       # subnets via OSPF from the hub-ros peer. Without this, RouterOS
       # only sees its own WireGuard subnet; backbone/wg-* subnets that
       # live in the hub kernel table are invisible to it.
-      redistribute       = ["kernel"]
+      redistribute = ["kernel"]
     }
   }
 }

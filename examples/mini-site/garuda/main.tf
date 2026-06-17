@@ -39,6 +39,7 @@ module "garuda_k8s_pt" {
   namespace       = "garuda"
   backbone_subnet = var.backbone_subnet
   border_subnet   = var.border_subnet
+  kubeconfig_path = local.edges_kubeconfig_path["pt"]
 }
 
 module "garuda_k8s_de" {
@@ -52,6 +53,7 @@ module "garuda_k8s_de" {
   namespace       = "garuda"
   backbone_subnet = var.backbone_subnet
   border_subnet   = var.border_subnet
+  kubeconfig_path = local.edges_kubeconfig_path["de"]
 }
 
 # --- WireGuard Kubernetes workloads: edge side (one deployment per edge) ---
@@ -73,6 +75,8 @@ module "wireguard_kube_pt" {
   wireguard_image = var.wireguard_image
   frr_image       = var.frr_sidecar_image
   ospf            = local.wireguard_kube_inputs["pt"].ospf
+
+  depends_on = [module.garuda_k8s_pt]
 }
 
 module "wireguard_kube_de" {
@@ -92,6 +96,8 @@ module "wireguard_kube_de" {
   wireguard_image = var.wireguard_image
   frr_image       = var.frr_sidecar_image
   ospf            = local.wireguard_kube_inputs["de"].ospf
+
+  depends_on = [module.garuda_k8s_de]
 }
 
 # --- WireGuard tunnel key-pair for hub-ros (RouterOS <-> hub) ---
@@ -166,6 +172,7 @@ module "garuda_k8s_hub" {
   namespace       = "garuda"
   backbone_subnet = var.backbone_subnet
   border_subnet   = var.border_subnet
+  kubeconfig_path = local.hub_kubeconfig_path
 }
 
 # --- Hub-side WireGuard kube deployments (one per edge tunnel) ---
@@ -271,19 +278,19 @@ module "firezone_kube" {
     kubernetes = kubernetes.hub
   }
 
-  namespace           = module.garuda_k8s_hub.namespace
-  firezone_dir        = local.firezone_facts.directory
-  firezone_image      = var.fz_firezone_image
-  frr_image           = var.frr_sidecar_image
-  server_fqdn         = local.firezone_fqdn
-  admin_email         = local.firezone_facts.admin_email
-  admin_password      = local.firezone_facts.admin_password
-  client_subnet       = local.firezone_facts.client_subnet
+  namespace      = module.garuda_k8s_hub.namespace
+  firezone_dir   = local.firezone_facts.directory
+  firezone_image = var.fz_firezone_image
+  frr_image      = var.frr_sidecar_image
+  server_fqdn    = local.firezone_fqdn
+  admin_email    = local.firezone_facts.admin_email
+  admin_password = local.firezone_facts.admin_password
+  client_subnet  = local.firezone_facts.client_subnet
   gateway_ref = {
     name      = module.k8s_gateway_bootstrap.gateway_name
     namespace = module.k8s_gateway_bootstrap.gateway_namespace
   }
-  ospf                = local.firezone_kube_ospf
+  ospf = local.firezone_kube_ospf
   # Mirrors locals.tf:103 transit.interfaces wiring.
   # The FRR sidecar exports PBR_TRANSIT_INTERFACES=wg-firezone so
   # transit_watcher routes Firezone client traffic via OSPF-discovered

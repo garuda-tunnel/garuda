@@ -1,0 +1,54 @@
+{{- if .Values.multusReadiness.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "garuda.fullname" . }}-multus-gate
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+    app.kubernetes.io/component: multus-readiness
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "garuda.fullname" . }}-multus-gate
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+    app.kubernetes.io/component: multus-readiness
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    resourceNames: ["kube-multus-ds"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "garuda.fullname" . }}-multus-gate
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+    app.kubernetes.io/component: multus-readiness
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "garuda.fullname" . }}-multus-gate
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "garuda.fullname" . }}-multus-gate
+{{- end }}

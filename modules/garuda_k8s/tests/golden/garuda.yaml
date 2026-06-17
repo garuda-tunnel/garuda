@@ -1,4 +1,17 @@
 ---
+# Source: garuda/templates/pod-reaper-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: g-garuda-pod-reaper
+  namespace: garuda
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    app.kubernetes.io/component: pod-reaper
+---
 # Source: garuda/templates/configmap-network-meta.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -14,6 +27,101 @@ data:
   backbone_subnet: "10.42.0.0/24"
   border_subnet: "10.43.0.0/24"
   chart_version: "0.3.0"
+
+---
+# Source: garuda/templates/pod-reaper-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: g-garuda-pod-reaper
+  namespace: garuda
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    app.kubernetes.io/component: pod-reaper
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+---
+# Source: garuda/templates/pod-reaper-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: g-garuda-pod-reaper
+  namespace: garuda
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    app.kubernetes.io/component: pod-reaper
+subjects:
+  - kind: ServiceAccount
+    name: g-garuda-pod-reaper
+    namespace: garuda
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: g-garuda-pod-reaper
+
+---
+# Source: garuda/templates/pod-reaper-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: g-garuda-pod-reaper
+  namespace: garuda
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    app.kubernetes.io/component: pod-reaper
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pod-reaper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pod-reaper
+    spec:
+      serviceAccountName: g-garuda-pod-reaper
+      containers:
+        - name: pod-reaper
+          image: "target/pod-reaper:2.14.0@sha256:b8f908a99d9c503220f195d7f706e8ee0b012954ea10d263d6c219b042d196ec"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NAMESPACE
+              value: "garuda"
+            - name: MAX_UNREADY
+              value: "120s"
+            - name: EVICT
+              value: "true"
+            - name: GRACE_PERIOD
+              value: "30s"
+            - name: SCHEDULE
+              value: "@every 30s"
+            - name: EXCLUDE_LABEL_KEY
+              value: "app.kubernetes.io/name"
+            - name: EXCLUDE_LABEL_VALUES
+              value: "pod-reaper"
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
 
 ---
 # Source: garuda/templates/nad-backbone.yaml
@@ -97,3 +205,120 @@ spec:
         }]]
       }
     }
+---
+# Source: garuda/templates/multus-readiness-rbac.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: g-garuda-multus-gate
+  namespace: garuda
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    app.kubernetes.io/component: multus-readiness
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+---
+# Source: garuda/templates/multus-readiness-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: g-garuda-multus-gate
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    app.kubernetes.io/component: multus-readiness
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    resourceNames: ["kube-multus-ds"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+# Source: garuda/templates/multus-readiness-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: g-garuda-multus-gate
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    app.kubernetes.io/component: multus-readiness
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+subjects:
+  - kind: ServiceAccount
+    name: g-garuda-multus-gate
+    namespace: garuda
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: g-garuda-multus-gate
+
+---
+# Source: garuda/templates/multus-readiness-hook.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: g-garuda-multus-ready
+  namespace: garuda
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    app.kubernetes.io/component: multus-readiness
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 360
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: multus-readiness
+        app.kubernetes.io/part-of: garuda
+    spec:
+      serviceAccountName: g-garuda-multus-gate
+      restartPolicy: Never
+      containers:
+        - name: kubectl-wait
+          image: bitnami/kubectl:1.36.2@sha256:08afc880eea24f36572644ccae85fb3e573a6ff1b7161135a3ae9a5eab222df2
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              echo "Waiting for kube-multus-ds rollout (timeout 300s)..."
+              kubectl -n kube-system rollout status ds/kube-multus-ds \
+                --timeout=300s
+              echo "Waiting for all nodes Ready (timeout 120s)..."
+              kubectl wait --for=condition=Ready node --all \
+                --timeout=120s
+              echo "Multus readiness gate cleared."
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

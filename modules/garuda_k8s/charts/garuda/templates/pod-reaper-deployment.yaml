@@ -1,0 +1,55 @@
+{{- if .Values.podReaper.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "garuda.fullname" . }}-pod-reaper
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pod-reaper
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pod-reaper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pod-reaper
+    spec:
+      serviceAccountName: {{ include "garuda.fullname" . }}-pod-reaper
+      containers:
+        - name: pod-reaper
+          image: {{ .Values.podReaper.image | quote }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: MAX_UNREADY
+              value: {{ .Values.podReaper.maxUnready | quote }}
+            - name: EVICT
+              value: {{ .Values.podReaper.evict | quote }}
+            - name: GRACE_PERIOD
+              value: {{ .Values.podReaper.gracePeriod | quote }}
+            - name: SCHEDULE
+              value: {{ .Values.podReaper.schedule | quote }}
+            {{- if .Values.podReaper.requireLabelKey }}
+            - name: REQUIRE_LABEL_KEY
+              value: {{ .Values.podReaper.requireLabelKey | quote }}
+            - name: REQUIRE_LABEL_VALUES
+              value: {{ .Values.podReaper.requireLabelValues | quote }}
+            {{- end }}
+            - name: EXCLUDE_LABEL_KEY
+              value: {{ .Values.podReaper.excludeLabelKey | quote }}
+            - name: EXCLUDE_LABEL_VALUES
+              value: {{ .Values.podReaper.excludeLabelValues | quote }}
+          resources:
+            requests:
+              cpu: {{ .Values.podReaper.resources.requests.cpu | quote }}
+              memory: {{ .Values.podReaper.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.podReaper.resources.limits.cpu | quote }}
+              memory: {{ .Values.podReaper.resources.limits.memory | quote }}
+{{- end }}

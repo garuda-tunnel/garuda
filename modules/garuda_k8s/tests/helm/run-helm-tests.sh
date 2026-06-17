@@ -38,6 +38,17 @@ render_garuda() {
     --set borderRangeStart=10.43.0.2
 }
 
+render_garuda_layers_off() {
+  helm template g "${GARUDA_CHART}" \
+    --namespace garuda \
+    --set backboneSubnet=10.42.0.0/24 \
+    --set borderSubnet=10.43.0.0/24 \
+    --set borderGateway=10.43.0.1 \
+    --set borderRangeStart=10.43.0.2 \
+    --set multusReadiness.enabled=false \
+    --set podReaper.enabled=false
+}
+
 render_cni() {
   local install="$1"
   helm template g "${CNI_CHART}" \
@@ -49,6 +60,7 @@ declare -A renders
 renders["garuda"]="$(render_garuda)"
 renders["garuda-cni-default"]="$(render_cni true)"
 renders["garuda-cni-disabled"]="$(render_cni false)"
+renders["garuda-layers-off"]="$(render_garuda_layers_off)"
 
 cni_render="${renders["garuda-cni-default"]}"
 for expected in \
@@ -82,6 +94,15 @@ if [[ "${garuda_render}" == *"whereabouts"* ]]; then
   echo "garuda render still references whereabouts" >&2
   exit 1
 fi
+
+# Verify layers-off render has no pod-reaper or multus-ready resources.
+layers_off_render="${renders["garuda-layers-off"]}"
+for forbidden in 'pod-reaper' 'multus-ready'; do
+  if echo "${layers_off_render}" | grep -q "${forbidden}"; then
+    echo "garuda-layers-off unexpectedly contains '${forbidden}'" >&2
+    exit 1
+  fi
+done
 
 for scenario in "${!renders[@]}"; do
   out="${renders[${scenario}]}"

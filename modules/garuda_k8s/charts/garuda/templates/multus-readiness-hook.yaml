@@ -1,0 +1,48 @@
+{{- if .Values.multusReadiness.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "garuda.fullname" . }}-multus-ready
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+    app.kubernetes.io/component: multus-readiness
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.multusReadiness.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.multusReadiness.ttlSecondsAfterFinished }}
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: multus-readiness
+        app.kubernetes.io/part-of: garuda
+    spec:
+      serviceAccountName: {{ include "garuda.fullname" . }}-multus-gate
+      restartPolicy: Never
+      containers:
+        - name: kubectl-wait
+          image: {{ .Values.multusReadiness.image }}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              echo "Waiting for kube-multus-ds rollout (timeout {{ .Values.multusReadiness.rolloutTimeout }})..."
+              kubectl -n kube-system rollout status ds/kube-multus-ds \
+                --timeout={{ .Values.multusReadiness.rolloutTimeout }}
+              echo "Waiting for all nodes Ready (timeout {{ .Values.multusReadiness.nodeReadyTimeout }})..."
+              kubectl wait --for=condition=Ready node --all \
+                --timeout={{ .Values.multusReadiness.nodeReadyTimeout }}
+              echo "Multus readiness gate cleared."
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+{{- end }}
