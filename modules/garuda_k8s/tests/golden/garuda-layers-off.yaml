@@ -13,7 +13,7 @@ metadata:
 data:
   backbone_subnet: "10.42.0.0/24"
   border_subnet: "10.43.0.0/24"
-  chart_version: "0.3.0"
+  chart_version: "0.3.1"
 
 ---
 # Source: garuda/templates/nad-backbone.yaml

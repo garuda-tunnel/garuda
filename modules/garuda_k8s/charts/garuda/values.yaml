@@ -25,12 +25,13 @@ podReaper:
   evict: "true"
   gracePeriod: "30s"
   schedule: "@every 30s"
-  # requireLabelKey / requireLabelValues: disabled by default so pod-reaper
-  # selects all unready pods in the namespace (consumer charts such as
-  # wireguard/firezone/router/border-router do not emit
-  # app.kubernetes.io/part-of=garuda).
-  requireLabelKey: ""
-  requireLabelValues: ""
+  # requireLabelKey / requireLabelValues: enabled after D-follow1 propagated
+  # app.kubernetes.io/part-of=garuda to all consumer charts (wireguard v0.5.0,
+  # firezone v0.5.0, ipt-server v0.4.0, border-router v0.4.0). Pod-reaper now
+  # scopes reaping to Garuda-labelled pods instead of all unready pods in the
+  # namespace. Disable per-stand with --set podReaper.requireLabelKey="".
+  requireLabelKey: "app.kubernetes.io/part-of"
+  requireLabelValues: "garuda"
   # excludeLabelKey / excludeLabelValues: self-reap protection — pod-reaper
   # must not evict itself.
   excludeLabelKey: "app.kubernetes.io/name"
