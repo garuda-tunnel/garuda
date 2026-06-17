@@ -3,7 +3,7 @@
 module "wireguard_tunnel" {
   for_each = var.edges
 
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.4.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.5.0"
 
   name     = "wg_${each.key}"
   env_slug = var.env_slug
@@ -59,7 +59,7 @@ module "garuda_k8s_de" {
 # --- WireGuard Kubernetes workloads: edge side (one deployment per edge) ---
 
 module "wireguard_kube_pt" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.4.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.5.0"
 
   providers = {
     helm       = helm.pt
@@ -80,7 +80,7 @@ module "wireguard_kube_pt" {
 }
 
 module "wireguard_kube_de" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.4.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.5.0"
 
   providers = {
     helm       = helm.de
@@ -103,7 +103,7 @@ module "wireguard_kube_de" {
 # --- WireGuard tunnel key-pair for hub-ros (RouterOS <-> hub) ---
 
 module "wireguard_tunnel_hub_ros" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.4.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.5.0"
 
   name     = "wg_hub_ros"
   env_slug = var.env_slug
@@ -125,7 +125,7 @@ module "wireguard_tunnel_hub_ros" {
 # --- WireGuard RouterOS module: RouterOS side of hub-ros tunnel ---
 
 module "wireguard_routeros_hub_ros" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//routeros?ref=v0.4.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//routeros?ref=v0.5.0"
 
   hostname       = var.routeros.hostname
   config         = module.wireguard_tunnel_hub_ros.peers["edge"]
@@ -179,7 +179,7 @@ module "garuda_k8s_hub" {
 
 module "wireguard_kube_hub" {
   for_each = var.edges
-  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.4.0"
+  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.5.0"
 
   providers = {
     helm       = helm.hub
@@ -202,7 +202,7 @@ module "wireguard_kube_hub" {
 # --- Hub-side WireGuard kube deployment for RouterOS tunnel ---
 
 module "wireguard_kube_hub_ros" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.4.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.5.0"
 
   providers = {
     helm       = helm.hub
@@ -271,7 +271,7 @@ module "k8s_gateway_bootstrap" {
 # --- Firezone (hub, k8s) ---
 
 module "firezone_kube" {
-  source = "git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v0.4.0"
+  source = "git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v0.5.0"
 
   providers = {
     helm       = helm.hub
@@ -315,7 +315,7 @@ module "firezone_kube" {
 # --- ipt_server (hub, k8s) ---
 
 module "ipt_server_kube" {
-  source = "git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.3.0"
+  source = "git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.4.0"
 
   providers = {
     helm       = helm.hub
@@ -341,7 +341,7 @@ module "ipt_server_kube" {
 # border gateway, masquerade) so ipt_server can route RU/local traffic to it via
 # gw=<router_id> instead of the broken gateway-less dev=border nexthop.
 module "border_router" {
-  source = "git::https://github.com/garuda-tunnel/border-router.git?ref=v0.3.0"
+  source = "git::https://github.com/garuda-tunnel/border-router.git?ref=v0.4.0"
 
   providers = {
     helm       = helm.hub
