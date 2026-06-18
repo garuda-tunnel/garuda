@@ -195,6 +195,7 @@ module "wireguard_kube_hub" {
   wireguard_image = var.wireguard_image
   frr_image       = var.frr_sidecar_image
   ospf            = local.wireguard_kube_hub_inputs[each.key].ospf
+  mtu             = 1330
 
   depends_on = [module.garuda_k8s_hub]
 }
