@@ -236,3 +236,17 @@
         gateway_name:      "{{ z2g_gateway_name }}"
         listener_name:     "{{ z2g_listener_name }}"
         cert_secret_name:  "{{ z2g_cert_secret_name }}"
+
+- name: "Phase 13 — MTU/MSS structural (k3s)"
+  hosts: k3s_hosts
+  gather_facts: false
+  tags: [phase_13, mtu, mss]
+  tasks:
+    - ansible.builtin.import_tasks: tasks/phase_13_mtu_mss.yml
+
+- name: "Phase 13 — MTU/MSS structural (RouterOS)"
+  hosts: routeros
+  gather_facts: false
+  tags: [phase_13, mtu, mss]
+  tasks:
+    - ansible.builtin.import_tasks: tasks/phase_13_mtu_mss_ros.yml

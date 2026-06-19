@@ -1,0 +1,24 @@
+---
+# Phase 13: MTU/MSS structural smoke — RouterOS WireGuard interface MTU.
+# Imported by the 'routeros' play in z2g.yml.
+# Uses raw SSH delegated to localhost, matching the pattern in phase_6_ospf_routes.yml.
+
+- name: "§13 — read RouterOS WireGuard interface detail"
+  ansible.builtin.command:
+    cmd: >-
+      ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10
+      -i ~/.ssh/id_ed25519
+      admin@{{ ansible_host }}
+      "/interface/wireguard/print detail"
+  delegate_to: localhost
+  register: _ros_wg_iface
+  changed_when: false
+
+- name: "§13 — assert RouterOS WireGuard interface MTU equals effective_mtu ({{ z2g_effective_mtu }})"
+  ansible.builtin.assert:
+    that:
+      - _ros_wg_iface.stdout is search('mtu=' ~ z2g_effective_mtu | string)
+    fail_msg: |
+      RouterOS WireGuard interface does not show mtu={{ z2g_effective_mtu }}.
+      Output:
+      {{ _ros_wg_iface.stdout }}

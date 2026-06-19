@@ -70,3 +70,9 @@ z2g_listener_name: "hub"
 # gateway-system).
 z2g_gateway_name: "platform-gateway"
 z2g_gateway_namespace: "gateway-system"
+
+# Phase 13 — MTU/MSS structural smoke.
+# Values from the unified MTU/MSS policy (modules/wireguard/values.yaml).
+z2g_effective_mtu: 1330
+z2g_fixed_mss: 1290
+z2g_firezone_fixed_mss: 1240

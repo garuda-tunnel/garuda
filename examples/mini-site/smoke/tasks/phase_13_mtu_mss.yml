@@ -1,0 +1,257 @@
+---
+# Phase 13: MTU/MSS structural smoke (k3s hosts).
+# Verifies WireGuard pod interface MTU and nftables MSS-clamp rules.
+# Run on k3s_hosts (hub + edges).
+#
+# RouterOS WireGuard MTU is checked in the separate 'routeros' play in z2g.yml
+# which imports tasks/phase_13_mtu_mss_ros.yml.
+#
+# Container mapping (authoritative, from chart source):
+#   wg pods    — container 'wg', table 'inet border_<wg-iface>'
+#   firezone   — container 'mss-clamp', table 'inet firezone_mss'
+#   ipt-server — container 'ipt-server', table 'inet ipt_server_mss'
+#   border-router — no long-running app container with nft;
+#                   egress-setup init container installs 'inet border_mss'
+#                   and logs: "[egress-setup] MSS clamp installed (..., MSS N)"
+
+# ── WireGuard pod interface MTU (hub + edges) ────────────────────────────────
+
+- name: "§13 — resolve WireGuard deployments for this host"
+  ansible.builtin.set_fact:
+    _wg_deploys: >-
+      {{ ['wg-pt', 'wg-de', 'wg-hub-ros'] if z2g_role == 'hub'
+          else (['wg-' ~ z2g_role] if z2g_role in ['pt', 'de'] else []) }}
+
+- name: "§13 — read WireGuard pod interface MTU"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda exec deploy/{{ item }} -c wg --
+        ip -o link show {{ item }}
+  become: true
+  register: _wg_iface_mtu
+  changed_when: false
+  loop: "{{ _wg_deploys }}"
+  loop_control:
+    label: "{{ item }}"
+  when: z2g_role in ['hub', 'pt', 'de']
+
+- name: "§13 — filter executed WireGuard MTU results"
+  ansible.builtin.set_fact:
+    _wg_iface_mtu_results: >-
+      {{ ((_wg_iface_mtu | default({'results': []})).results)
+         | rejectattr('skipped', 'defined') | list }}
+
+- name: "§13 — assert WireGuard pod interface MTU equals {{ z2g_effective_mtu }}"
+  vars:
+    # ip -o link show: "N: wg-xxx: <FLAGS> mtu 1330 ..."
+    _mtu_val: >-
+      {{ item.stdout | regex_search('mtu (\d+)', '\1')
+         | default([]) | first | default('0') }}
+  ansible.builtin.assert:
+    that:
+      - _mtu_val | int == z2g_effective_mtu | int
+    fail_msg: >-
+      WireGuard pod interface {{ item.item }} on {{ inventory_hostname }}
+      has MTU {{ _mtu_val }}, expected {{ z2g_effective_mtu }}.
+      ip link output: {{ item.stdout }}
+  loop: "{{ _wg_iface_mtu_results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# ── WireGuard pod nft MSS rules (hub + edges) ────────────────────────────────
+# Each WG pod installs 'table inet border_<wg-interface>' via postup.sh.
+# postup.sh rules use:
+#   oifname "<wg-iface>" tcp flags syn tcp option maxseg size set rt mtu
+#   iifname "<wg-iface>" tcp flags syn tcp option maxseg size set <WG_FIXED_MSS>
+# Run on all k3s_hosts that have WG deployments (hub and edges).
+
+- name: "§13 — read nft ruleset from WireGuard pods"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda exec deploy/{{ item }} -c wg --
+        nft -a list ruleset
+  become: true
+  register: _wg_nft
+  changed_when: false
+  loop: "{{ _wg_deploys }}"
+  loop_control:
+    label: "{{ item }}"
+  when: z2g_role in ['hub', 'pt', 'de']
+
+- name: "§13 — filter executed WireGuard nft results"
+  ansible.builtin.set_fact:
+    _wg_nft_results: >-
+      {{ ((_wg_nft | default({'results': []})).results)
+         | rejectattr('skipped', 'defined') | list }}
+
+- name: "§13 — assert WireGuard pod nft has outbound rt mtu rule"
+  vars:
+    _output: "{{ item.stdout }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        _output is search('tcp option maxseg size set rt mtu')
+    fail_msg: |
+      WireGuard pod {{ item.item }} nft ruleset missing
+      'tcp option maxseg size set rt mtu' outbound rule.
+      nft output:
+      {{ _output }}
+  loop: "{{ _wg_nft_results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: "§13 — assert WireGuard pod nft has inbound MSS set {{ z2g_fixed_mss }}"
+  vars:
+    _output: "{{ item.stdout }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        _output is search('tcp option maxseg size set ' ~ (z2g_fixed_mss | string))
+    fail_msg: |
+      WireGuard pod {{ item.item }} nft ruleset missing
+      'tcp option maxseg size set {{ z2g_fixed_mss }}' inbound rule.
+      nft output:
+      {{ _output }}
+  loop: "{{ _wg_nft_results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# ── Firezone nft MSS rules (hub only) ────────────────────────────────────────
+# firezone pod has a dedicated 'mss-clamp' sidecar that owns inet firezone_mss.
+# Container name: mss-clamp (NOT firezone).
+
+- name: "§13 — read nft ruleset from firezone mss-clamp sidecar"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda exec deploy/firezone -c mss-clamp --
+        nft -a list ruleset
+  become: true
+  register: _fz_nft
+  changed_when: false
+  when: z2g_role == 'hub'
+
+- name: "§13 — assert firezone inet firezone_mss table exists"
+  ansible.builtin.assert:
+    that:
+      - _fz_nft.stdout is search('inet firezone_mss')
+    fail_msg: |
+      firezone mss-clamp container nft missing 'inet firezone_mss' table.
+      nft output:
+      {{ _fz_nft.stdout }}
+  when: z2g_role == 'hub'
+
+- name: "§13 — assert firezone nft has outbound rt mtu on wg-firezone"
+  ansible.builtin.assert:
+    that:
+      - >-
+        _fz_nft.stdout is search(
+          'oifname "wg-firezone" tcp flags syn tcp option maxseg size set rt mtu')
+    fail_msg: |
+      firezone mss-clamp nft missing
+      'oifname "wg-firezone" ... maxseg size set rt mtu' rule.
+      nft output:
+      {{ _fz_nft.stdout }}
+  when: z2g_role == 'hub'
+
+- name: "§13 — assert firezone nft inbound MSS set {{ z2g_firezone_fixed_mss }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        _fz_nft.stdout is search(
+          'iifname "wg-firezone" tcp flags syn tcp option maxseg size set '
+          ~ (z2g_firezone_fixed_mss | string))
+    fail_msg: |
+      firezone mss-clamp nft missing
+      'iifname "wg-firezone" ... maxseg size set {{ z2g_firezone_fixed_mss }}' rule.
+      nft output:
+      {{ _fz_nft.stdout }}
+  when: z2g_role == 'hub'
+
+# ── ipt-server nft MSS rules (hub only) ──────────────────────────────────────
+# ipt-server installs 'inet ipt_server_mss' via mss.nft.j2 (Jinja template
+# rendered at startup). Container name: ipt-server.
+# Rules: iifname/oifname "backbone" ... maxseg size set <fixed_mss>
+
+- name: "§13 — read nft ruleset from ipt-server container"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda exec deploy/ipt-server -c ipt-server --
+        nft -a list ruleset
+  become: true
+  register: _ipt_nft
+  changed_when: false
+  when: z2g_role == 'hub'
+
+- name: "§13 — assert ipt-server inet ipt_server_mss table exists"
+  ansible.builtin.assert:
+    that:
+      - _ipt_nft.stdout is search('inet ipt_server_mss')
+    fail_msg: |
+      ipt-server nft missing 'inet ipt_server_mss' table.
+      nft output:
+      {{ _ipt_nft.stdout }}
+  when: z2g_role == 'hub'
+
+- name: "§13 — assert ipt-server backbone outbound MSS set {{ z2g_fixed_mss }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        _ipt_nft.stdout is search(
+          'oifname "backbone" tcp flags syn tcp option maxseg size set '
+          ~ (z2g_fixed_mss | string))
+    fail_msg: |
+      ipt-server nft missing backbone outbound MSS set {{ z2g_fixed_mss }}.
+      nft output:
+      {{ _ipt_nft.stdout }}
+  when: z2g_role == 'hub'
+
+- name: "§13 — assert ipt-server backbone inbound MSS set {{ z2g_fixed_mss }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        _ipt_nft.stdout is search(
+          'iifname "backbone" tcp flags syn tcp option maxseg size set '
+          ~ (z2g_fixed_mss | string))
+    fail_msg: |
+      ipt-server nft missing backbone inbound MSS set {{ z2g_fixed_mss }}.
+      nft output:
+      {{ _ipt_nft.stdout }}
+  when: z2g_role == 'hub'
+
+# ── border-router MSS rules via egress-setup init container logs (hub only) ──
+# border-router has no long-running app container that can exec nft.
+# Its only non-frr-sidecar container is 'egress-setup', which runs as an init
+# container, installs 'inet border_mss' via nft, and exits.
+# The successful install is confirmed by the log line:
+#   "[egress-setup] MSS clamp installed (backbone both dirs, MSS <N>)"
+# kubectl logs targets completed init containers with -c egress-setup.
+
+- name: "§13 — read egress-setup init container logs from border-router"
+  ansible.builtin.command:
+    cmd: >
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml
+        -n garuda logs deploy/border-router -c egress-setup
+  become: true
+  register: _br_egress_logs
+  changed_when: false
+  when: z2g_role == 'hub'
+
+- name: "§13 — assert border-router egress-setup installed inet border_mss"
+  ansible.builtin.assert:
+    that:
+      - >-
+        _br_egress_logs.stdout is search(
+          '\[egress-setup\] MSS clamp installed \(backbone both dirs, MSS '
+          ~ (z2g_fixed_mss | string) ~ '\)')
+    fail_msg: |
+      border-router egress-setup log does not confirm
+      'inet border_mss' install at MSS {{ z2g_fixed_mss }}.
+      Expected log line:
+        [egress-setup] MSS clamp installed (backbone both dirs, MSS {{ z2g_fixed_mss }})
+      Actual egress-setup log:
+      {{ _br_egress_logs.stdout }}
+  when: z2g_role == 'hub'

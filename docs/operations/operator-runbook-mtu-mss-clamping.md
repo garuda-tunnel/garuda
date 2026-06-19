@@ -27,10 +27,10 @@ QUIC keeps working over a consistent MTU + transiting ICMP PTB.
 
 | Layer | Node(s) | Mechanism | Direction(s) |
 |---|---|---|---|
-| **WG pods** | `wg-hub-ros`, `wg-usa`, `wg-mexico`, both edge VMs | `postup.sh`: `oifname` clamp-to-pmtu (`rt mtu`) + new `iifname` fixed MSS (`WG_MTU−40`, sysfs-sourced), in `table inet border_<iface>` | `oifname` = load-bearing return on the last WG hop; `iifname` = inbound-initiated defense |
+| **WG pods** | `wg-hub-ros`, `wg-usa`, `wg-mexico`, both edge VMs | `postup.sh`: `oifname` clamp-to-pmtu (`rt mtu`) + `iifname` fixed MSS (`WG_FIXED_MSS`, chart-injected), gated on `WG_MSS_CLAMP_ENABLED`, in `table inet border_<iface>` | `oifname` = load-bearing return on the last WG hop; `iifname` = inbound-initiated defense |
 | **firezone sidecar** | `firezone` (`wg-firezone`) | idempotent, readiness-gated NET_ADMIN sidecar installs **both** `oifname wg-firezone` clamp-to-pmtu (1280⇒MSS 1240, load-bearing Chain-B return) AND `iifname wg-firezone` fixed MSS 1240, in `table inet firezone_mss` (never edits `table inet firezone`) | both |
 | **ipt-server central** | `ipt-server` (`backbone`) | `table inet ipt_server_mss`, fixed MSS 1240 on `iifname`+`oifname backbone` | **forward only** (return is asymmetric — bypasses ipt-server, see §1 note) |
-| **border-router** | `border-router` (`backbone`) | forward chain in `table inet border_router`, fixed MSS 1240 | both, RU egress |
+| **border-router** | `border-router` (`backbone`) | `egress-setup` init container installs `table inet border_mss`, fixed MSS on `iifname`+`oifname backbone`, gated on `BR_MSS_CLAMP_ENABLED` | both, RU egress |
 | **RouterOS** | RouterOS own tunnel `wg-hub-ros` (module); `wg_tik` only via operator CLI handoff (§4) | `change-mss new-mss=clamp-to-pmtu` mangle on `in-interface` + `out-interface` (PMTU per-flow) | bidirectional |
 
 **Return-path fact (Task 0 DQ2 — ASYMMETRIC):** internet→client return traffic
@@ -103,8 +103,9 @@ sudo kubectl -n garuda exec deploy/firezone   -c mss-clamp   -- nft list table i
 sudo kubectl -n garuda exec deploy/wg-hub-ros -c wg -- nft list table inet border_wg-hub-ros
 sudo kubectl -n garuda exec deploy/wg-usa     -c wg -- nft list table inet border_wg-usa
 sudo kubectl -n garuda exec deploy/wg-mexico  -c wg -- nft list table inet border_wg-mexico
-# border-router backbone clamp:
-sudo kubectl -n garuda exec deploy/border-router -c border-router -- nft list table inet border_router
+# border-router backbone clamp (egress-setup is an init container; nft state is not
+# observable after it exits — verify via logs that the clamp was installed):
+sudo kubectl -n garuda logs deploy/border-router -c egress-setup | grep 'MSS clamp installed'
 ```
 Confirm the `tcp option maxseg size set ...` rules are present and their packet
 counters are non-zero on an active stand (run some TCP traffic first).
@@ -228,12 +229,12 @@ Per-layer off-switches (pick the smallest action that unblocks):
 
 | Layer | Off-switch |
 |---|---|
-| ipt-server | `--set iptServer.mssClampValue=0` |
-| border-router | `--set borderRouter.mssClampValue=0` |
-| firezone | `--set mssClamp.enabled=false` (removes sidecar + readiness flag wiring) |
-| wireguard postup | the `iifname` clamp derives from sysfs `WG_MTU`; the `oifname` clamp is unchanged legacy behavior |
+| ipt-server | `--set mtuPolicy.mssClampEnabled=false` |
+| border-router | `--set mtuPolicy.mssClampEnabled=false` |
+| firezone | `--set mtuPolicy.mssClampEnabled=false` (removes iifname fixed-MSS rule; oifname route-PMTU clamp remains) |
+| wireguard postup | `--set mtuPolicy.mssClampEnabled=false` disables the `iifname` fixed-MSS rule; the `oifname` route-PMTU clamp is always present |
 | RouterOS `wg_tik` | delete the manually-added mangle rules (`/ip firewall mangle remove [find comment~"garuda-wg_tik"]`) |
-| MTU alignment | revert the chart `wireguard.mtu` value / RouterOS `var.mtu` to the prior MTU |
+| MTU alignment | revert `mtuPolicy.effectiveMtu` in the wireguard chart and `var.mtu_policy.effective_mtu` in the RouterOS module to the prior value |
 
 **Full revert:** downgrade the chart/module via the stand pin (point the pin
 back to the pre-clamp chart/module version and `terragrunt apply`). This reverts

@@ -1,9 +1,15 @@
+locals {
+  mtu_policy = {
+    site_mtu = 1330
+  }
+}
+
 # --- WireGuard tunnel key-pairs (one tunnel object per edge) ---
 
 module "wireguard_tunnel" {
   for_each = var.edges
 
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.6.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v1.1.0"
 
   name     = "wg_${each.key}"
   env_slug = var.env_slug
@@ -59,7 +65,7 @@ module "garuda_k8s_de" {
 # --- WireGuard Kubernetes workloads: edge side (one deployment per edge) ---
 
 module "wireguard_kube_pt" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.6.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v1.1.0"
 
   providers = {
     helm       = helm.pt
@@ -75,12 +81,13 @@ module "wireguard_kube_pt" {
   wireguard_image = var.wireguard_image
   frr_image       = var.frr_sidecar_image
   ospf            = local.wireguard_kube_inputs["pt"].ospf
+  mtu_policy      = local.mtu_policy
 
   depends_on = [module.garuda_k8s_pt]
 }
 
 module "wireguard_kube_de" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.6.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v1.1.0"
 
   providers = {
     helm       = helm.de
@@ -96,6 +103,7 @@ module "wireguard_kube_de" {
   wireguard_image = var.wireguard_image
   frr_image       = var.frr_sidecar_image
   ospf            = local.wireguard_kube_inputs["de"].ospf
+  mtu_policy      = local.mtu_policy
 
   depends_on = [module.garuda_k8s_de]
 }
@@ -103,7 +111,7 @@ module "wireguard_kube_de" {
 # --- WireGuard tunnel key-pair for hub-ros (RouterOS <-> hub) ---
 
 module "wireguard_tunnel_hub_ros" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.6.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v1.1.0"
 
   name     = "wg_hub_ros"
   env_slug = var.env_slug
@@ -125,7 +133,7 @@ module "wireguard_tunnel_hub_ros" {
 # --- WireGuard RouterOS module: RouterOS side of hub-ros tunnel ---
 
 module "wireguard_routeros_hub_ros" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//routeros?ref=v0.6.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//routeros?ref=v1.1.0"
 
   hostname       = var.routeros.hostname
   config         = module.wireguard_tunnel_hub_ros.peers["edge"]
@@ -133,6 +141,7 @@ module "wireguard_routeros_hub_ros" {
   subnet         = local.hub_ros_facts.subnet_cidr
   allowed_nets   = ["0.0.0.0/0", "224.0.0.0/4"]
   interface_list = "LAN"
+  mtu_policy     = local.mtu_policy
 
   router_id = split("/", var.hub_ros.routeros_cidr)[0]
   ospf_area = "0.0.0.0"
@@ -179,7 +188,7 @@ module "garuda_k8s_hub" {
 
 module "wireguard_kube_hub" {
   for_each = var.edges
-  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.6.0"
+  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v1.1.0"
 
   providers = {
     helm       = helm.hub
@@ -195,7 +204,7 @@ module "wireguard_kube_hub" {
   wireguard_image = var.wireguard_image
   frr_image       = var.frr_sidecar_image
   ospf            = local.wireguard_kube_hub_inputs[each.key].ospf
-  mtu             = 1330
+  mtu_policy      = local.mtu_policy
 
   depends_on = [module.garuda_k8s_hub]
 }
@@ -203,7 +212,7 @@ module "wireguard_kube_hub" {
 # --- Hub-side WireGuard kube deployment for RouterOS tunnel ---
 
 module "wireguard_kube_hub_ros" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.6.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v1.1.0"
 
   providers = {
     helm       = helm.hub
@@ -219,6 +228,7 @@ module "wireguard_kube_hub_ros" {
   wireguard_image = var.wireguard_image
   frr_image       = var.frr_sidecar_image
   ospf            = local.wireguard_kube_hub_ros_inputs.ospf
+  mtu_policy      = local.mtu_policy
   # Mirrors locals.tf:85 transit.interfaces wiring.
   # The FRR sidecar exports PBR_TRANSIT_INTERFACES=wg-hub-ros so
   # transit_watcher adds `ip rule iif wg-hub-ros lookup 201` and resolves
@@ -272,7 +282,7 @@ module "k8s_gateway_bootstrap" {
 # --- Firezone (hub, k8s) ---
 
 module "firezone_kube" {
-  source = "git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v0.6.0"
+  source = "git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v1.1.0"
 
   providers = {
     helm       = helm.hub
@@ -287,6 +297,7 @@ module "firezone_kube" {
   admin_email    = local.firezone_facts.admin_email
   admin_password = local.firezone_facts.admin_password
   client_subnet  = local.firezone_facts.client_subnet
+  mtu_policy     = local.mtu_policy
   gateway_ref = {
     name      = module.k8s_gateway_bootstrap.gateway_name
     namespace = module.k8s_gateway_bootstrap.gateway_namespace
@@ -316,7 +327,7 @@ module "firezone_kube" {
 # --- ipt_server (hub, k8s) ---
 
 module "ipt_server_kube" {
-  source = "git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.5.0"
+  source = "git::https://github.com/garuda-tunnel/router.git//kube?ref=v1.1.0"
 
   providers = {
     helm       = helm.hub
@@ -332,6 +343,7 @@ module "ipt_server_kube" {
   pbr_interfaces   = ["backbone"]
   pinning_egress   = local.pinning_egress
   ospf             = local.ipt_server_kube_ospf
+  mtu_policy       = local.mtu_policy
 
   depends_on = [module.garuda_k8s_hub]
 }
@@ -342,18 +354,19 @@ module "ipt_server_kube" {
 # border gateway, masquerade) so ipt_server can route RU/local traffic to it via
 # gw=<router_id> instead of the broken gateway-less dev=border nexthop.
 module "border_router" {
-  source = "git::https://github.com/garuda-tunnel/border-router.git?ref=v0.5.0"
+  source = "git::https://github.com/garuda-tunnel/border-router.git?ref=v1.1.0"
 
   providers = {
     helm       = helm.hub
     kubernetes = kubernetes.hub
   }
 
-  namespace = module.garuda_k8s_hub.namespace
-  name      = "border-router"
-  image     = var.border_router_image
-  frr_image = var.frr_sidecar_image
-  ospf      = { router_id = var.border_router.router_id }
+  namespace  = module.garuda_k8s_hub.namespace
+  name       = "border-router"
+  image      = var.border_router_image
+  frr_image  = var.frr_sidecar_image
+  ospf       = { router_id = var.border_router.router_id }
+  mtu_policy = local.mtu_policy
 
   depends_on = [module.garuda_k8s_hub]
 }
