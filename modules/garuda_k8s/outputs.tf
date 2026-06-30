@@ -18,7 +18,7 @@ output "border_nad_name" {
   value       = "border"
 }
 
-output "multus_ready_id" {
-  description = "Opaque id of the null_resource gate consumers add to depends_on (Sub-project D Layer 2)."
-  value       = null_resource.multus_ready.id
+output "map_propagation_id" {
+  description = "Opaque id of the time_sleep.map_propagation resource. Stand-level workload modules add this to depends_on (Phase 5 wiring) to guarantee MAP/MAPBinding propagation before any workload pod is admitted. 10s sleep absorbs the ~3-5s observed propagation latency (spec §8.3)."
+  value       = time_sleep.map_propagation.id
 }

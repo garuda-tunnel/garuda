@@ -1,6 +1,6 @@
 mock_provider "helm" {}
 mock_provider "kubernetes" {}
-mock_provider "null" {}
+mock_provider "time" {}
 
 variables {
   namespace       = "garuda"
@@ -161,37 +161,34 @@ run "invalid_backbone_subnet_rejected" {
   expect_failures = [var.backbone_subnet]
 }
 
-# Task 5 (TDD): assert that output.multus_ready_id is exposed for consumer modules.
-# null_resource.multus_ready is mocked by mock_provider "null" so local-exec never runs.
-run "multus_ready_output_present" {
+# Phase 3 (Task 8): assert that output.map_propagation_id is exposed for consumer modules.
+# time_sleep.map_propagation is mocked by mock_provider "time".
+run "map_propagation_output_present" {
   command = plan
 
   assert {
-    condition     = output.multus_ready_id != null
-    error_message = "multus_ready_id output must be exposed so consumer modules can depend on it (Layer 2 Sub-project D)"
+    condition     = output.map_propagation_id != null
+    error_message = "map_propagation_id output must be exposed so stand-level workload modules can depend on it (Phase 5 wiring)"
   }
 }
 
-# Task 5: assert that null_resource.multus_ready depends on helm_release.garuda_cni
-# via its triggers key, which carries garuda_cni.id as the sentinel.
-run "multus_ready_triggered_by_cni_release" {
+# Phase 3 (Task 8): assert that time_sleep.map_propagation uses the correct duration.
+run "map_propagation_duration_10s" {
   command = plan
 
   assert {
-    condition     = contains(keys(null_resource.multus_ready.triggers), "garuda_cni_release")
-    error_message = "null_resource.multus_ready must have trigger key garuda_cni_release to express depends_on helm_release.garuda_cni"
+    condition     = time_sleep.map_propagation.create_duration == "10s"
+    error_message = "time_sleep.map_propagation.create_duration must be 10s (2x observed ~3-5s propagation latency — spec §8.3)"
   }
 }
 
-# Task 5: belt-and-suspenders — verify null_resource.multus_ready id is non-empty
-# (proves the resource is created and wired into the plan). depends_on is not
-# an inspectable attribute in tofu plan expressions; the trigger key test above
-# covers the CNI ordering intent structurally.
-run "multus_ready_id_non_empty_string" {
+# Phase 3 (Task 8): belt-and-suspenders — verify map_propagation_id is non-empty
+# (proves the resource is created and wired into the plan).
+run "map_propagation_id_non_empty_string" {
   command = plan
 
   assert {
-    condition     = output.multus_ready_id != ""
-    error_message = "multus_ready_id must not be an empty string; null_resource.multus_ready must be in the plan"
+    condition     = output.map_propagation_id != ""
+    error_message = "map_propagation_id must not be an empty string; time_sleep.map_propagation must be in the plan"
   }
 }

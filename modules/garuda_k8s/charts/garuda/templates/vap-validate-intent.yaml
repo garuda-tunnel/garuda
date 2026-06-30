@@ -1,0 +1,93 @@
+# ValidatingAdmissionPolicy: garuda-validate-intent
+# API: admissionregistration.k8s.io/v1 (GA since k8s v1.30)
+# Enforces: profile label presence, XOR invariants, schema checks.
+# Does NOT validate NAD names (allowlist dropped — spec §7.1).
+# No paramKind required (no allowlist ConfigMap param).
+#
+# CRITICAL guards (smoke 2 finding E1):
+# matchConditions check has(object.metadata.annotations) — without this guard,
+# VAP with failurePolicy: Fail DENIES ALL pods without annotations cluster-wide.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: garuda-validate-intent
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        # CREATE + UPDATE: UPDATE catches out-of-band kubectl edit/patch on annotations.
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: has-garuda-annotation
+      # Guard: has(object.metadata.annotations) prevents crash on bare pods.
+      # Smoke 2 finding E1: unguarded access with failurePolicy: Fail denies ALL bare pods cluster-wide.
+      # Only pods bearing at least one net.garuda-tunnel/ annotation are validated.
+      expression: >
+        has(object.metadata.annotations) &&
+        object.metadata.annotations.exists(k, k.startsWith('net.garuda-tunnel/'))
+  variables:
+    - name: profileName
+      # matchConditions guarantee has(object.metadata.annotations) but NOT has(object.metadata.labels).
+      # .? optional accessor is required here — labels may be absent on pods with only annotations.
+      expression: >
+        object.metadata.?labels['net.garuda-tunnel/profile'].orValue("")
+    - name: hasTransitInterfaces
+      # matchConditions guarantee has(object.metadata.annotations) so direct .?annotations.orValue({}) is safe.
+      expression: >
+        'net.garuda-tunnel/transit-interfaces' in object.metadata.?annotations.orValue({})
+  validations:
+    # Rule 1: profile LABEL is required when any net.garuda-tunnel/ annotation is present.
+    # Rationale: MAP matchConditions dispatch on the profile label; without it the MAP
+    # does not fire and the pod reaches VAP in an inconsistent state.
+    - expression: >
+        variables.profileName != ""
+      message: >
+        net.garuda-tunnel/profile label is required when any net.garuda-tunnel/ annotation is set.
+    # Rule 2: XOR invariant — transit-provider profile MUST NOT carry transit-interfaces.
+    # Mirrors the hard fail in frr-sidecar-internal/_container.tpl lines 29-30 (spec §4.2).
+    # transit-provider IS the PBR provider; it must not also be a PBR consumer.
+    - expression: >
+        !(variables.profileName == "transit-provider" && variables.hasTransitInterfaces)
+      message: >
+        Profile 'transit-provider' must not carry net.garuda-tunnel/transit-interfaces
+        (XOR invariant — mirrors frr-sidecar-internal _container.tpl lines 29-30).
+    # Rule 3: raw-mode XOR — frr-mode=raw forbids interfaces and redistribute annotations.
+    # The raw ConfigMap is the authoritative FRR source; per-interface/redistribute annotations
+    # would conflict with it. Spec §15 (Tier 3 escape hatch).
+    - expression: >
+        !(
+          object.metadata.?annotations['net.garuda-tunnel/frr-mode'].orValue("") == "raw" &&
+          (
+            'net.garuda-tunnel/interfaces' in object.metadata.?annotations.orValue({}) ||
+            'net.garuda-tunnel/redistribute' in object.metadata.?annotations.orValue({})
+          )
+        )
+      message: >
+        net.garuda-tunnel/frr-mode=raw forbids net.garuda-tunnel/interfaces and
+        net.garuda-tunnel/redistribute — the raw ConfigMap is the authoritative FRR source;
+        per-interface and redistribute annotations conflict with it.
+---
+# ValidatingAdmissionPolicyBinding: garuda-validate-intent-binding
+# No paramRef — VAP has no paramKind (allowlist dropped per spec §7.1).
+# namespaceSelector excludes kube-system so the platform never gates itself.
+# validationActions: [Deny] — hard rejection at admission.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: garuda-validate-intent-binding
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+spec:
+  policyName: garuda-validate-intent
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system"]

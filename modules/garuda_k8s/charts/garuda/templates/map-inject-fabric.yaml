@@ -1,0 +1,292 @@
+# MutatingAdmissionPolicy: garuda-inject-fabric
+# API: admissionregistration.k8s.io/v1 (GA, k3s v1.36.1+k3s1 — spec §3.2)
+# Empirical evidence: smoke 1 (Q1-Q6 PASS), smoke 2 (E1-E7 resolved)
+# docs/artifacts/2026-06-21-vpn-test2-map-smoke.md
+# docs/artifacts/2026-06-21-vpn-test2-map-smoke2-structural.md
+#
+# INVARIANTS (DO NOT RELAX):
+#   - reinvocationPolicy: Never (E3+E4: JSONPatch add on atomic lists duplicates under IfNeeded)
+#   - All CEL on metadata.annotations/labels uses has() or .? guards (E1: unguarded crashes bare pods)
+#   - SSA-only lists for initContainers, volumes (E2: concat duplicates on IfNeeded)
+#   - JSONPatch op:add on /- for atomic fields: sysctls, downwardAPI.items (E3/E6)
+#   - ApplyConfiguration for metadata.annotations (E5: auto-creates parent map; JSONPatch on absent parent fails)
+#   - MAP does NOT touch k8s.v1.cni.cncf.io/networks (composed by garuda_guest in Terraform)
+#   - MAP does NOT write net.garuda-tunnel/profile-rev (Terraform/garuda_guest key — spec §4.5)
+#   - CEL expressions must NOT contain # comments (CEL has no comment syntax)
+#   - CEL optional indexing .?['key'] is NOT supported on k3s v1.36.1; use 'key' in map ? map['key'] : default
+#   - capabilities.add in initContainers is +listType=atomic; ApplyConfiguration blocked for this field;
+#     capabilities are injected via JSONPatch after the initContainer ApplyConfiguration (Phase 3 finding)
+#     Full FRR-required set (8 caps): NET_ADMIN+NET_RAW+SYS_ADMIN (fabric baseline);
+#     SETUID+SETGID (FRR privilege-drop to frr user); DAC_OVERRIDE (watchfrr pid write as root);
+#     NET_BIND_SERVICE (mgmtd/ospfd bind <1024 ports); CHOWN (state dir ownership).
+#   - sysctls JSONPatch path requires /spec/securityContext and /spec/securityContext/sysctls to exist;
+#     sysctls injection is idempotent: each sysctl is only added if not already present in the pod spec.
+#     pods MUST declare spec.securityContext.sysctls (can be [] or a pre-populated list) for the
+#     array-init guard to work correctly.
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: garuda-inject-fabric
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  reinvocationPolicy: Never
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: has-garuda-profile
+      expression: >
+        has(object.metadata.labels) && 'net.garuda-tunnel/profile' in object.metadata.labels
+  variables:
+    - name: profileName
+      expression: >
+        object.metadata.?labels['net.garuda-tunnel/profile'].orValue("")
+    - name: annots
+      expression: >
+        object.metadata.?annotations.orValue({})
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: |
+          Object{
+            metadata: Object.metadata{
+              annotations: {
+                "net.garuda-tunnel/profile-observed-rev": params.metadata.resourceVersion
+              }
+            }
+          }
+
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: |
+          Object{
+            spec: Object.spec{
+              initContainers: [
+                Object.spec.initContainers{
+                  name: "frr-sidecar",
+                  restartPolicy: "Always",
+                  image: ('net.garuda-tunnel/sidecar-image' in variables.annots) ? variables.annots['net.garuda-tunnel/sidecar-image'] : params.data['sidecar_image'],
+                  env: [
+                    Object.spec.initContainers.env{
+                      name: "PROFILE",
+                      value: variables.profileName
+                    },
+                    Object.spec.initContainers.env{
+                      name: "ROUTER_ID",
+                      value: ('net.garuda-tunnel/router-id' in variables.annots) ? variables.annots['net.garuda-tunnel/router-id'] : ""
+                    },
+                    Object.spec.initContainers.env{
+                      name: "OSPF_INTERFACES",
+                      value: ('net.garuda-tunnel/interfaces' in variables.annots) ? variables.annots['net.garuda-tunnel/interfaces'] : ""
+                    },
+                    Object.spec.initContainers.env{
+                      name: "OSPF_PASSIVE_INTERFACES",
+                      value: ('net.garuda-tunnel/passive-interfaces' in variables.annots) ? variables.annots['net.garuda-tunnel/passive-interfaces'] : ""
+                    },
+                    Object.spec.initContainers.env{
+                      name: "PBR_TRANSIT_TAG",
+                      value: ('net.garuda-tunnel/transit-interfaces' in variables.annots) ? "201" : ""
+                    },
+                    Object.spec.initContainers.env{
+                      name: "PBR_TRANSIT_INTERFACES",
+                      value: ('net.garuda-tunnel/transit-interfaces' in variables.annots) ? variables.annots['net.garuda-tunnel/transit-interfaces'] : ""
+                    }
+                  ],
+                  volumeMounts: [
+                    Object.spec.initContainers.volumeMounts{
+                      name: "garuda-profile",
+                      mountPath: "/etc/garuda/profile",
+                      readOnly: true
+                    },
+                    Object.spec.initContainers.volumeMounts{
+                      name: "garuda-intent",
+                      mountPath: "/etc/garuda/intent",
+                      readOnly: true
+                    }
+                  ] + (
+                    ('net.garuda-tunnel/frr-extra-configmap' in variables.annots) ?
+                    [Object.spec.initContainers.volumeMounts{
+                      name: "garuda-extra",
+                      mountPath: "/etc/garuda/extra",
+                      readOnly: true
+                    }] : []
+                  ) + (
+                    ('net.garuda-tunnel/frr-raw-configmap' in variables.annots) ?
+                    [Object.spec.initContainers.volumeMounts{
+                      name: "garuda-raw",
+                      mountPath: "/etc/garuda/raw",
+                      readOnly: true
+                    }] : []
+                  ),
+                  readinessProbe: Object.spec.initContainers.readinessProbe{
+                    httpGet: Object.spec.initContainers.readinessProbe.httpGet{
+                      path: "/readyz",
+                      port: 9179
+                    },
+                    initialDelaySeconds: 5,
+                    periodSeconds: 10
+                  }
+                }
+              ]
+            }
+          }
+
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: |
+          Object{
+            spec: Object.spec{
+              volumes: [
+                Object.spec.volumes{
+                  name: "garuda-profile",
+                  configMap: Object.spec.volumes.configMap{
+                    name: params.metadata.name
+                  }
+                }
+              ] + (
+                ('net.garuda-tunnel/frr-extra-configmap' in variables.annots) ?
+                [Object.spec.volumes{
+                  name: "garuda-extra",
+                  configMap: Object.spec.volumes.configMap{
+                    name: variables.annots['net.garuda-tunnel/frr-extra-configmap']
+                  }
+                }] : []
+              ) + (
+                ('net.garuda-tunnel/frr-raw-configmap' in variables.annots) ?
+                [Object.spec.volumes{
+                  name: "garuda-raw",
+                  configMap: Object.spec.volumes.configMap{
+                    name: variables.annots['net.garuda-tunnel/frr-raw-configmap']
+                  }
+                }] : []
+              )
+            }
+          }
+
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: |
+          (
+            !has(object.spec.initContainers) ? [] :
+            [0, 1, 2, 3].filter(idx,
+              idx < object.spec.initContainers.size() &&
+              object.spec.initContainers[idx].name == "frr-sidecar"
+            ).map(idx, [
+              JSONPatch{op: "add",
+                        path: "/spec/initContainers/" + string(idx) + "/securityContext",
+                        value: {
+                          "capabilities": {
+                            "drop": ["ALL"],
+                            "add": ["NET_ADMIN", "NET_RAW", "SYS_ADMIN",
+                                    "NET_BIND_SERVICE", "SETUID", "SETGID",
+                                    "CHOWN", "DAC_OVERRIDE"]
+                          }
+                        }}
+            ]).flatten()
+          ) + (has(object.spec.securityContext) && has(object.spec.securityContext.sysctls) ?
+            [] :
+            (has(object.spec.securityContext) ?
+              [JSONPatch{op: "add", path: "/spec/securityContext/sysctls", value: []}] :
+              [
+                JSONPatch{op: "add", path: "/spec/securityContext", value: {}},
+                JSONPatch{op: "add", path: "/spec/securityContext/sysctls", value: []}
+              ]
+            )
+          ) + (
+            (has(object.spec.securityContext) && has(object.spec.securityContext.sysctls) &&
+             object.spec.securityContext.sysctls.exists(s, s.name == "net.ipv4.ip_forward")) ?
+            [] :
+            [JSONPatch{op: "add", path: "/spec/securityContext/sysctls/-",
+                      value: Object.spec.securityContext.sysctls{
+                        name: "net.ipv4.ip_forward", value: "1"}}]
+          ) + (
+            (has(object.spec.securityContext) && has(object.spec.securityContext.sysctls) &&
+             object.spec.securityContext.sysctls.exists(s, s.name == "net.ipv4.conf.all.rp_filter")) ?
+            [] :
+            [JSONPatch{op: "add", path: "/spec/securityContext/sysctls/-",
+                      value: Object.spec.securityContext.sysctls{
+                        name: "net.ipv4.conf.all.rp_filter", value: "2"}}]
+          ) + [
+            JSONPatch{op: "add", path: "/spec/volumes/-",
+                     value: Object.spec.volumes{
+                       name: "garuda-intent",
+                       downwardAPI: Object.spec.volumes.downwardAPI{
+                         items: [
+                           Object.spec.volumes.downwardAPI.items{
+                             path: "annotations",
+                             fieldRef: Object.spec.volumes.downwardAPI.items.fieldRef{
+                               fieldPath: "metadata.annotations"
+                             }
+                           }
+                         ]
+                       }
+                     }}
+          ]
+---
+# MAPBinding: ospf-router profile
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: garuda-inject-fabric-ospf-router
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+spec:
+  policyName: garuda-inject-fabric
+  paramRef:
+    name: garuda-profile-ospf-router
+    namespace: {{ .Values.namespace | quote }}
+    parameterNotFoundAction: Deny
+  matchResources:
+    objectSelector:
+      matchExpressions:
+        - key: net.garuda-tunnel/profile
+          operator: In
+          values: ["ospf-router"]
+---
+# MAPBinding: transit-provider profile
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: garuda-inject-fabric-transit-provider
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+spec:
+  policyName: garuda-inject-fabric
+  paramRef:
+    name: garuda-profile-transit-provider
+    namespace: {{ .Values.namespace | quote }}
+    parameterNotFoundAction: Deny
+  matchResources:
+    objectSelector:
+      matchExpressions:
+        - key: net.garuda-tunnel/profile
+          operator: In
+          values: ["transit-provider"]
+---
+# MAPBinding: border profile
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: garuda-inject-fabric-border
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+spec:
+  policyName: garuda-inject-fabric
+  paramRef:
+    name: garuda-profile-border
+    namespace: {{ .Values.namespace | quote }}
+    parameterNotFoundAction: Deny
+  matchResources:
+    objectSelector:
+      matchExpressions:
+        - key: net.garuda-tunnel/profile
+          operator: In
+          values: ["border"]

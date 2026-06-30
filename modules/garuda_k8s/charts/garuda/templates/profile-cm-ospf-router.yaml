@@ -1,0 +1,54 @@
+# Profile: ospf-router
+# Roles: wireguard (hub-wg per-edge, hub-ros), firezone
+# Spec §6.3: transit_role=none; sysctl variant A (with src_valid_mark).
+# Differentiation between hub-wg, edge-wg, hub-ros is done via annotations
+# (default-originate, redistribute, nic-attach, transit-interfaces) — NOT profile variants.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garuda-profile-ospf-router
+  namespace: {{ .Values.namespace | quote }}
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+    net.garuda-tunnel/kind: NetworkProfile
+data:
+  # Sidecar image — bumped by frr-sidecar-internal release-please pipeline (PR #10 → 0.3.0).
+  # Override per-stand with .Values.frr_sidecar_image; override per-pod with
+  # net.garuda-tunnel/sidecar-image annotation (Tier 1 escape hatch, spec §15).
+  sidecar_image: {{ .Values.frr_sidecar_image | quote }}
+  # Profile metadata
+  transit_role: "none"
+  default_originate: "false"
+  # Sysctl variant A: includes src_valid_mark (required by WireGuard and Firezone — spec §6.2, finding #3).
+  # MAP injects: net.ipv4.ip_forward=1, net.ipv4.conf.all.rp_filter=2 (pod-level, via JSONPatch).
+  # src_valid_mark=1 stays in guest chart securityContext (wireguard deployment.yaml:37-44).
+  sysctl_set: "ip_forward,rp_filter,src_valid_mark"
+  # FRR daemon enablement (baked-in constants per spec §6.2: zebra+ospfd only).
+  daemons: |
+    zebra=yes
+    ospfd=yes
+    bgpd=no
+    ospf6d=no
+    ripd=no
+    ripngd=no
+    isisd=no
+    pimd=no
+    nhrpd=no
+  # FRR config template — rendered by frr-sidecar entrypoint (render_frr.py) at container startup.
+  # Placeholders: ${ROUTER_ID}, ${OSPF_INTERFACES_BLOCK}, ${REDISTRIBUTE_BLOCK}, ${DEFAULT_ORIGINATE_BLOCK}.
+  # Baked-in constants (spec §6.2): area 0.0.0.0, hello=5/dead=15, ip ospf mtu-ignore,
+  # zebra nexthop proto only, frr defaults traditional.
+  # NOTE: ${OSPF_INTERFACES_BLOCK} renders top-level `interface X` stanzas and MUST appear
+  # at the global scope, NOT inside `router ospf`. The `router ospf` block only contains
+  # ospf router-scoped directives: router-id, redistribute, default-information originate.
+  frr.conf.tmpl: |
+    frr defaults traditional
+    log file /tmp/frr.log
+    zebra nexthop proto only
+    !
+    ${OSPF_INTERFACES_BLOCK}
+    router ospf
+      ospf router-id ${ROUTER_ID}
+      ${REDISTRIBUTE_BLOCK}
+      ${DEFAULT_ORIGINATE_BLOCK}
+    !

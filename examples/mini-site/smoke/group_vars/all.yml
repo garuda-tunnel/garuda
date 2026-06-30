@@ -49,6 +49,17 @@ pinning_wg_client_container: "wg-client"
 # RouterOS LAN gateway reachable through the WireGuard hub-ros tunnel (phase 8).
 z2g_routeros_lan_gw: "198.51.100.1"
 
+# SSH identity file used by phase_6 to query RouterOS via raw SSH.
+# Override per-stand if the operator's default key is not authorised on RouterOS.
+z2g_routeros_ssh_key_file: "~/.ssh/id_ed25519"
+
+# When false (default), phase_6 RouterOS SSH failures are treated as warnings
+# and the SSH assertion tasks are skipped (OSPF is still validated from the
+# wg-hub-ros frr-sidecar side). Set to true to enforce hard failures on SSH
+# errors (useful in CI or when the controller has guaranteed LAN access to
+# RouterOS).
+z2g_routeros_ssh_strict: false
+
 # Phase 12 — Gateway API TLS pipeline.
 # z2g_firezone_fqdn: FQDN the HTTPRoute is bound to and the cert SAN.
 # Override per-stand with -e z2g_firezone_fqdn=hub.example.net

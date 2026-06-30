@@ -1,0 +1,54 @@
+# Profile: transit-provider
+# Role: ipt-server (OSPF transit provider; PBR kernel table 201 — spec §6.3)
+# Key invariants: transit_role=provider; default_originate=true; sysctl variant B (no src_valid_mark).
+# MUST NOT carry transit-interfaces annotation (XOR invariant — VAP Rule 2, spec §4.2).
+# redistribute=kernel is EXCLUDED from this profile (invariant — prevents tag break — spec §6.3).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garuda-profile-transit-provider
+  namespace: {{ .Values.namespace | quote }}
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+    net.garuda-tunnel/kind: NetworkProfile
+data:
+  sidecar_image: {{ .Values.frr_sidecar_image | quote }}
+  transit_role: "provider"
+  default_originate: "true"
+  # Sysctl variant B: ip_forward + rp_filter only (no src_valid_mark — spec §6.2 finding #3).
+  sysctl_set: "ip_forward,rp_filter"
+  daemons: |
+    zebra=yes
+    ospfd=yes
+    bgpd=no
+    ospf6d=no
+    ripd=no
+    ripngd=no
+    isisd=no
+    pimd=no
+    nhrpd=no
+  # FRR template for transit-provider: default-originate always on; no redistribute kernel
+  # (tag-break prevention per spec §6.3 and finding #4).
+  # The TRANSIT_ORIGINATE route-map stamps tag 201 (PBR selector), metric 100, type-2
+  # onto the originated default route. The `default-information originate ... route-map
+  # TRANSIT_ORIGINATE` directive references it. This MUST match prod ground truth
+  # (docs/artifacts/2026-06-25-vxxlcx-prod-frr-ground-truth.md §2.4 / Q3, gap D4) —
+  # without `set tag 201` the ipt-server PBR rules that match tag 201 never fire.
+  # NOTE: ${OSPF_INTERFACES_BLOCK} renders top-level `interface X` stanzas and MUST appear
+  # at the global scope, NOT inside `router ospf`.
+  frr.conf.tmpl: |
+    frr defaults traditional
+    log file /tmp/frr.log
+    zebra nexthop proto only
+    !
+    route-map TRANSIT_ORIGINATE permit 10
+      set tag 201
+      set metric 100
+      set metric-type type-2
+    !
+    ${OSPF_INTERFACES_BLOCK}
+    router ospf
+      ospf router-id ${ROUTER_ID}
+      default-information originate always metric 100 metric-type 2 route-map TRANSIT_ORIGINATE
+      ${REDISTRIBUTE_BLOCK}
+    !

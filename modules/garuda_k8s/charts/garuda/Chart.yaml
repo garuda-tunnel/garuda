@@ -1,8 +1,11 @@
 apiVersion: v2
 name: garuda
-description: "Garuda namespace bootstrap: NetworkAttachmentDefinitions
-  (backbone, border) and the network-meta ConfigMap. Requires the Multus CRD
-  already present in the cluster (install garuda-cni first)."
+description: "Garuda namespace bootstrap: NADs (backbone, border), pod-reaper,
+  Multus readiness hook, MutatingAdmissionPolicy (garuda-inject-fabric),
+  ValidatingAdmissionPolicy (garuda-validate-intent), per-profile ConfigMaps
+  (ospf-router, transit-provider, border). Requires Multus CRD (install
+  garuda-cni first). k3s v1.36.1+ required for MAP
+  (admissionregistration.k8s.io/v1 GA)."
 type: application
-version: 0.5.0
+version: 0.7.2
 appVersion: "0.1.0"

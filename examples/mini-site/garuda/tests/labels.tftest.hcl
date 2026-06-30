@@ -112,26 +112,30 @@ variables {
   }
 }
 
-run "ipt_server_label_router_id" {
+run "ipt_server_garuda_guest_router_id" {
   command = plan
 
+  # OSPF intent now flows through garuda_guest, not legacy ipt_server_kube_ospf local.
   assert {
-    condition     = local.ipt_server_kube_ospf.router_id == var.ospf_router_ids.ipt_server
-    error_message = "ipt_server kube OSPF router_id must flow through from var.ospf_router_ids.ipt_server"
+    condition     = module.garuda_guest_ipt_server_kube.annotations["net.garuda-tunnel/router-id"] == var.ospf_router_ids.ipt_server
+    error_message = "ipt_server garuda_guest must emit router-id from var.ospf_router_ids.ipt_server"
   }
 }
 
-run "pt_default_originate_asymmetry" {
+run "pt_default_originate_via_garuda_guest" {
   command = plan
 
+  # Prod ground truth (2026-06-25-vxxlcx-prod-frr-ground-truth.md Q4): edge WireGuard
+  # workloads do NOT originate a default route — ONLY ipt-server (transit-provider) does.
+  # Neither the hub side nor the edge side of pt emits a default-originate annotation.
   assert {
-    condition     = local.tunnel_facts["pt"].labels.hub["garuda.frr.ospf.default_originate"] == "false"
-    error_message = "pt hub side must NOT originate default route"
+    condition     = !contains(keys(module.garuda_guest_wireguard_kube_hub["pt"].annotations), "net.garuda-tunnel/default-originate")
+    error_message = "pt hub-side garuda_guest must NOT emit default-originate annotation (profile default)"
   }
 
   assert {
-    condition     = local.tunnel_facts["pt"].labels.edge["garuda.frr.ospf.default_originate"] == "true"
-    error_message = "pt edge side MUST originate default route (transit edge)"
+    condition     = !contains(keys(module.garuda_guest_wireguard_kube_pt.annotations), "net.garuda-tunnel/default-originate")
+    error_message = "pt edge-side garuda_guest must NOT emit default-originate (prod: only ipt-server originates the default)"
   }
 }
 

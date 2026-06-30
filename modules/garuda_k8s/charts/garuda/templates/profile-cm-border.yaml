@@ -1,0 +1,56 @@
+# Profile: border
+# Role: border-router (spec §6.3)
+# Key invariants: transit_role=none; sysctl variant B (no src_valid_mark);
+# border-router is never a transit consumer; egress-setup init stays in guest chart.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garuda-profile-border
+  namespace: {{ .Values.namespace | quote }}
+  labels:
+    {{- include "garuda.labels" . | nindent 4 }}
+    net.garuda-tunnel/kind: NetworkProfile
+data:
+  sidecar_image: {{ .Values.frr_sidecar_image | quote }}
+  transit_role: "none"
+  default_originate: "false"
+  # Sysctl variant B: ip_forward + rp_filter only (no src_valid_mark — spec §6.2 finding #3).
+  sysctl_set: "ip_forward,rp_filter"
+  daemons: |
+    zebra=yes
+    ospfd=yes
+    bgpd=no
+    ospf6d=no
+    ripd=no
+    ripngd=no
+    isisd=no
+    pimd=no
+    nhrpd=no
+  # FRR template for border: backbone is OSPF-active (hello/dead/mtu-ignore); dummy0 is
+  # OSPF-passive (area + `ip ospf passive` ONLY — no timers, no mtu-ignore). This matches
+  # prod ground truth exactly (docs/artifacts/2026-06-25-vxxlcx-prod-frr-ground-truth.md
+  # §2.6): dummy0 is advertised for router-id /32 materialisation but sends no hellos.
+  # Interface names are hardcoded for border role (backbone@backbone confirmed in
+  # border-router-internal/_helpers.tpl:18-20; dummy0 for router-id /32 materialisation).
+  # NOTE: dummy0 passive is expressed in the interface stanza (`ip ospf passive`), matching
+  # prod, rather than `passive-interface dummy0` in `router ospf` (FRR-equivalent, D5).
+  frr.conf.tmpl: |
+    frr defaults traditional
+    log file /tmp/frr.log
+    zebra nexthop proto only
+    !
+    interface backbone
+      ip ospf area 0.0.0.0
+      ip ospf hello-interval 5
+      ip ospf dead-interval 15
+      ip ospf mtu-ignore
+    !
+    interface dummy0
+      ip ospf area 0.0.0.0
+      ip ospf passive
+    !
+    router ospf
+      ospf router-id ${ROUTER_ID}
+      ${REDISTRIBUTE_BLOCK}
+      ${DEFAULT_ORIGINATE_BLOCK}
+    !

@@ -45,32 +45,6 @@ resource "helm_release" "garuda_cni" {
   ]
 }
 
-# Layer 2 of Sub-project D: TF-side ordering gate.
-# Waits for kube-multus-ds rollout + all nodes Ready before downstream
-# helm_releases (in this module AND consumer modules) fire. Consumers read
-# output.multus_ready_id and add it to their depends_on.
-resource "null_resource" "multus_ready" {
-  triggers = {
-    garuda_cni_release = helm_release.garuda_cni.id
-  }
-
-  provisioner "local-exec" {
-    interpreter = ["/bin/sh", "-c"]
-    environment = {
-      KUBECONFIG = var.kubeconfig_path
-    }
-    command = <<-EOT
-      set -eu
-      kubectl --kubeconfig="$KUBECONFIG" rollout status \
-        ds/kube-multus-ds -n kube-system --timeout=300s
-      kubectl --kubeconfig="$KUBECONFIG" wait \
-        --for=condition=Ready node --all --timeout=300s
-    EOT
-  }
-
-  depends_on = [helm_release.garuda_cni]
-}
-
 resource "helm_release" "garuda" {
   name             = "garuda"
   namespace        = kubernetes_namespace_v1.garuda.metadata[0].name
@@ -90,6 +64,20 @@ resource "helm_release" "garuda" {
   # Hard ordering: the NetworkAttachmentDefinition CRD is registered
   # by Multus inside garuda_cni; submitting the NADs before that release
   # is Ready produces `no matches for kind "NetworkAttachmentDefinition"`.
-  # Belt-and-suspenders: also gate on null_resource.multus_ready (Layer 2).
-  depends_on = [helm_release.garuda_cni, null_resource.multus_ready]
+  depends_on = [helm_release.garuda_cni]
+}
+
+# time_sleep.map_propagation: absorbs MAP/MAPBinding propagation latency.
+# Empirically observed: ~3-5 seconds from MAP object creation to API server enforcement
+# (confirmed in smoke 1: docs/artifacts/2026-06-21-vpn-test2-map-smoke.md, observation #4).
+# Value: 10s = 2x observed maximum (safety margin — spec §8.3).
+# depends_on alone sequences apply order but does NOT wait for in-process API server caching.
+# This sleep is the only available mechanism: MAP has no status.conditions for propagation.
+#
+# PHASE 5 NOTE: Stand-level workload modules must add:
+#   depends_on = [module.garuda_k8s.map_propagation_id]
+# That wiring is out of scope for Phase 3 and will be added during Phase 5 (stand cutover).
+resource "time_sleep" "map_propagation" {
+  create_duration = "10s"
+  depends_on      = [helm_release.garuda]
 }

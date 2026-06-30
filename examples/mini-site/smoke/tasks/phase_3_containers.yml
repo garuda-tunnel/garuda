@@ -47,7 +47,13 @@
     _running_pods: >-
       {{ _pods | selectattr('status.phase', 'equalto', 'Running') | list }}
     _pod: "{{ _running_pods | first | default({}) }}"
-    _containers: "{{ _pod.status.containerStatuses | default([]) }}"
+    # Phase 4+5: frr-sidecar moved to initContainers (native sidecar,
+    # restartPolicy:Always).  Union both lists so the check works regardless
+    # of whether frr-sidecar is a regular container (old charts, edge GCP
+    # nodes not yet applied) or an initContainer (hub pods at v1.2.0+).
+    _containers: >-
+      {{ (_pod.status.containerStatuses | default([]))
+         + (_pod.status.initContainerStatuses | default([])) }}
     _running_names: >-
       {{ _containers
          | selectattr('state.running', 'defined')

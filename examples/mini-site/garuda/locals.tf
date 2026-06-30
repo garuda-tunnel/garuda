@@ -19,22 +19,6 @@ locals {
         hub  = { cidr = e.hub_cidr, listen_port = e.listen_port }
         edge = { cidr = e.peer_cidr, listen_port = e.listen_port }
       }
-      labels = {
-        hub = {
-          "garuda.frr.ospf.enabled"           = "true"
-          "garuda.frr.ospf.router_id"         = e.ospf_router_id_hub
-          "garuda.frr.ospf.interfaces"        = "wg-${replace(k, "_", "-")}"
-          "garuda.frr.ospf.active_interfaces" = "wg-${replace(k, "_", "-")}"
-          "garuda.frr.ospf.default_originate" = "false"
-        }
-        edge = {
-          "garuda.frr.ospf.enabled"           = "true"
-          "garuda.frr.ospf.router_id"         = e.ospf_router_id_peer
-          "garuda.frr.ospf.interfaces"        = "wg-${replace(k, "_", "-")}"
-          "garuda.frr.ospf.active_interfaces" = "wg-${replace(k, "_", "-")}"
-          "garuda.frr.ospf.default_originate" = "true"
-        }
-      }
     }
   }
 
@@ -56,14 +40,6 @@ locals {
         address              = module.wireguard_tunnel[k].peers["core"].address
       }
       allowed_nets = ["0.0.0.0/0", "224.0.0.0/4"]
-      ospf = {
-        router_id          = e.ospf_router_id_peer
-        interfaces         = [module.wireguard_tunnel[k].peers["edge"].kernel_ifname]
-        passive_interfaces = []
-        default_originate  = true
-        redistribute       = []
-        transit_provider   = true
-      }
     }
   }
 
@@ -74,16 +50,6 @@ locals {
       hub      = { cidr = var.hub_ros.hub_cidr, listen_port = var.hub_ros.listen_port }
       routeros = { cidr = var.hub_ros.routeros_cidr, listen_port = var.hub_ros.listen_port }
     }
-    labels = {
-      hub = {
-        "garuda.frr.ospf.enabled"           = "true"
-        "garuda.frr.ospf.router_id"         = var.hub_ros.ospf_router_id_hub
-        "garuda.frr.ospf.interfaces"        = "wg-hub-ros"
-        "garuda.frr.ospf.active_interfaces" = "wg-hub-ros"
-        "garuda.frr.ospf.default_originate" = "false"
-        "garuda.transit.interfaces"         = "wg-hub-ros"
-      }
-    }
   }
 
   # --- Firezone workload facts. ---
@@ -93,34 +59,12 @@ locals {
     admin_email    = var.firezone_admin_email
     admin_password = var.firezone_admin_password
     client_subnet  = var.firezone_client_subnet
-    labels = {
-      "garuda.frr.ospf.enabled"           = "true"
-      "garuda.frr.ospf.router_id"         = var.ospf_router_ids.firezone
-      "garuda.frr.ospf.interfaces"        = "wg-firezone"
-      "garuda.frr.ospf.active_interfaces" = ""
-      "garuda.frr.ospf.default_originate" = "false"
-      "garuda.transit.interfaces"         = "wg-firezone"
-    }
   }
 
   # --- ipt_server facts. ---
   ipt_server_facts = {
     directory     = "/opt/garuda/ipt_server"
     frr_router_id = var.ospf_router_ids.ipt_server
-  }
-
-  # --- Structured OSPF objects for hub k8s workloads ---
-  firezone_kube_ospf = {
-    router_id          = var.ospf_router_ids.firezone
-    interfaces         = ["backbone", "wg-firezone"]
-    passive_interfaces = ["wg-firezone"]
-    default_originate  = false
-    redistribute       = ["connected", "kernel"]
-  }
-
-  ipt_server_kube_ospf = {
-    router_id  = var.ospf_router_ids.ipt_server
-    interfaces = ["backbone"]
   }
 
   # --- ipt_server pinning_egress: one entry per edge + the local border. ---
@@ -201,13 +145,6 @@ locals {
         address              = module.wireguard_tunnel[k].peers["edge"].address
       }
       allowed_nets = ["0.0.0.0/0", "224.0.0.0/4"]
-      ospf = {
-        router_id          = e.ospf_router_id_hub
-        interfaces         = ["backbone", module.wireguard_tunnel[k].peers["core"].kernel_ifname]
-        passive_interfaces = []
-        default_originate  = false
-        redistribute       = []
-      }
     }
   }
 
@@ -229,16 +166,5 @@ locals {
       address              = module.wireguard_tunnel_hub_ros.peers["edge"].address
     }
     allowed_nets = ["0.0.0.0/0", "224.0.0.0/4"]
-    ospf = {
-      router_id          = var.hub_ros.ospf_router_id_hub
-      interfaces         = ["backbone", module.wireguard_tunnel_hub_ros.peers["core"].kernel_ifname]
-      passive_interfaces = []
-      default_originate  = false
-      # Redistribute kernel routes so RouterOS learns backbone and wg-pt
-      # subnets via OSPF from the hub-ros peer. Without this, RouterOS
-      # only sees its own WireGuard subnet; backbone/wg-* subnets that
-      # live in the hub kernel table are invisible to it.
-      redistribute = ["kernel"]
-    }
   }
 }

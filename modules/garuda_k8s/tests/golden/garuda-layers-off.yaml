@@ -13,7 +13,499 @@ metadata:
 data:
   backbone_subnet: "10.42.0.0/24"
   border_subnet: "10.43.0.0/24"
-  chart_version: "0.3.1"
+  chart_version: "0.7.2"
+
+---
+# Source: garuda/templates/profile-cm-border.yaml
+# Profile: border
+# Role: border-router (spec §6.3)
+# Key invariants: transit_role=none; sysctl variant B (no src_valid_mark);
+# border-router is never a transit consumer; egress-setup init stays in guest chart.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garuda-profile-border
+  namespace: "garuda"
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    net.garuda-tunnel/kind: NetworkProfile
+data:
+  sidecar_image: "ghcr.io/garuda-tunnel/garuda-frr-sidecar:0.3.3"
+  transit_role: "none"
+  default_originate: "false"
+  # Sysctl variant B: ip_forward + rp_filter only (no src_valid_mark — spec §6.2 finding #3).
+  sysctl_set: "ip_forward,rp_filter"
+  daemons: |
+    zebra=yes
+    ospfd=yes
+    bgpd=no
+    ospf6d=no
+    ripd=no
+    ripngd=no
+    isisd=no
+    pimd=no
+    nhrpd=no
+  # FRR template for border: backbone is OSPF-active (hello/dead/mtu-ignore); dummy0 is
+  # OSPF-passive (area + `ip ospf passive` ONLY — no timers, no mtu-ignore). This matches
+  # prod ground truth exactly (docs/artifacts/2026-06-25-vxxlcx-prod-frr-ground-truth.md
+  # §2.6): dummy0 is advertised for router-id /32 materialisation but sends no hellos.
+  # Interface names are hardcoded for border role (backbone@backbone confirmed in
+  # border-router-internal/_helpers.tpl:18-20; dummy0 for router-id /32 materialisation).
+  # NOTE: dummy0 passive is expressed in the interface stanza (`ip ospf passive`), matching
+  # prod, rather than `passive-interface dummy0` in `router ospf` (FRR-equivalent, D5).
+  frr.conf.tmpl: |
+    frr defaults traditional
+    log file /tmp/frr.log
+    zebra nexthop proto only
+    !
+    interface backbone
+      ip ospf area 0.0.0.0
+      ip ospf hello-interval 5
+      ip ospf dead-interval 15
+      ip ospf mtu-ignore
+    !
+    interface dummy0
+      ip ospf area 0.0.0.0
+      ip ospf passive
+    !
+    router ospf
+      ospf router-id ${ROUTER_ID}
+      ${REDISTRIBUTE_BLOCK}
+      ${DEFAULT_ORIGINATE_BLOCK}
+    !
+
+---
+# Source: garuda/templates/profile-cm-ospf-router.yaml
+# Profile: ospf-router
+# Roles: wireguard (hub-wg per-edge, hub-ros), firezone
+# Spec §6.3: transit_role=none; sysctl variant A (with src_valid_mark).
+# Differentiation between hub-wg, edge-wg, hub-ros is done via annotations
+# (default-originate, redistribute, nic-attach, transit-interfaces) — NOT profile variants.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garuda-profile-ospf-router
+  namespace: "garuda"
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    net.garuda-tunnel/kind: NetworkProfile
+data:
+  # Sidecar image — bumped by frr-sidecar-internal release-please pipeline (PR #10 → 0.3.0).
+  # Override per-stand with .Values.frr_sidecar_image; override per-pod with
+  # net.garuda-tunnel/sidecar-image annotation (Tier 1 escape hatch, spec §15).
+  sidecar_image: "ghcr.io/garuda-tunnel/garuda-frr-sidecar:0.3.3"
+  # Profile metadata
+  transit_role: "none"
+  default_originate: "false"
+  # Sysctl variant A: includes src_valid_mark (required by WireGuard and Firezone — spec §6.2, finding #3).
+  # MAP injects: net.ipv4.ip_forward=1, net.ipv4.conf.all.rp_filter=2 (pod-level, via JSONPatch).
+  # src_valid_mark=1 stays in guest chart securityContext (wireguard deployment.yaml:37-44).
+  sysctl_set: "ip_forward,rp_filter,src_valid_mark"
+  # FRR daemon enablement (baked-in constants per spec §6.2: zebra+ospfd only).
+  daemons: |
+    zebra=yes
+    ospfd=yes
+    bgpd=no
+    ospf6d=no
+    ripd=no
+    ripngd=no
+    isisd=no
+    pimd=no
+    nhrpd=no
+  # FRR config template — rendered by frr-sidecar entrypoint (render_frr.py) at container startup.
+  # Placeholders: ${ROUTER_ID}, ${OSPF_INTERFACES_BLOCK}, ${REDISTRIBUTE_BLOCK}, ${DEFAULT_ORIGINATE_BLOCK}.
+  # Baked-in constants (spec §6.2): area 0.0.0.0, hello=5/dead=15, ip ospf mtu-ignore,
+  # zebra nexthop proto only, frr defaults traditional.
+  # NOTE: ${OSPF_INTERFACES_BLOCK} renders top-level `interface X` stanzas and MUST appear
+  # at the global scope, NOT inside `router ospf`. The `router ospf` block only contains
+  # ospf router-scoped directives: router-id, redistribute, default-information originate.
+  frr.conf.tmpl: |
+    frr defaults traditional
+    log file /tmp/frr.log
+    zebra nexthop proto only
+    !
+    ${OSPF_INTERFACES_BLOCK}
+    router ospf
+      ospf router-id ${ROUTER_ID}
+      ${REDISTRIBUTE_BLOCK}
+      ${DEFAULT_ORIGINATE_BLOCK}
+    !
+
+---
+# Source: garuda/templates/profile-cm-transit-provider.yaml
+# Profile: transit-provider
+# Role: ipt-server (OSPF transit provider; PBR kernel table 201 — spec §6.3)
+# Key invariants: transit_role=provider; default_originate=true; sysctl variant B (no src_valid_mark).
+# MUST NOT carry transit-interfaces annotation (XOR invariant — VAP Rule 2, spec §4.2).
+# redistribute=kernel is EXCLUDED from this profile (invariant — prevents tag break — spec §6.3).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: garuda-profile-transit-provider
+  namespace: "garuda"
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+    net.garuda-tunnel/kind: NetworkProfile
+data:
+  sidecar_image: "ghcr.io/garuda-tunnel/garuda-frr-sidecar:0.3.3"
+  transit_role: "provider"
+  default_originate: "true"
+  # Sysctl variant B: ip_forward + rp_filter only (no src_valid_mark — spec §6.2 finding #3).
+  sysctl_set: "ip_forward,rp_filter"
+  daemons: |
+    zebra=yes
+    ospfd=yes
+    bgpd=no
+    ospf6d=no
+    ripd=no
+    ripngd=no
+    isisd=no
+    pimd=no
+    nhrpd=no
+  # FRR template for transit-provider: default-originate always on; no redistribute kernel
+  # (tag-break prevention per spec §6.3 and finding #4).
+  # The TRANSIT_ORIGINATE route-map stamps tag 201 (PBR selector), metric 100, type-2
+  # onto the originated default route. The `default-information originate ... route-map
+  # TRANSIT_ORIGINATE` directive references it. This MUST match prod ground truth
+  # (docs/artifacts/2026-06-25-vxxlcx-prod-frr-ground-truth.md §2.4 / Q3, gap D4) —
+  # without `set tag 201` the ipt-server PBR rules that match tag 201 never fire.
+  # NOTE: ${OSPF_INTERFACES_BLOCK} renders top-level `interface X` stanzas and MUST appear
+  # at the global scope, NOT inside `router ospf`.
+  frr.conf.tmpl: |
+    frr defaults traditional
+    log file /tmp/frr.log
+    zebra nexthop proto only
+    !
+    route-map TRANSIT_ORIGINATE permit 10
+      set tag 201
+      set metric 100
+      set metric-type type-2
+    !
+    ${OSPF_INTERFACES_BLOCK}
+    router ospf
+      ospf router-id ${ROUTER_ID}
+      default-information originate always metric 100 metric-type 2 route-map TRANSIT_ORIGINATE
+      ${REDISTRIBUTE_BLOCK}
+    !
+
+---
+# Source: garuda/templates/map-inject-fabric.yaml
+# MutatingAdmissionPolicy: garuda-inject-fabric
+# API: admissionregistration.k8s.io/v1 (GA, k3s v1.36.1+k3s1 — spec §3.2)
+# Empirical evidence: smoke 1 (Q1-Q6 PASS), smoke 2 (E1-E7 resolved)
+# docs/artifacts/2026-06-21-vpn-test2-map-smoke.md
+# docs/artifacts/2026-06-21-vpn-test2-map-smoke2-structural.md
+#
+# INVARIANTS (DO NOT RELAX):
+#   - reinvocationPolicy: Never (E3+E4: JSONPatch add on atomic lists duplicates under IfNeeded)
+#   - All CEL on metadata.annotations/labels uses has() or .? guards (E1: unguarded crashes bare pods)
+#   - SSA-only lists for initContainers, volumes (E2: concat duplicates on IfNeeded)
+#   - JSONPatch op:add on /- for atomic fields: sysctls, downwardAPI.items (E3/E6)
+#   - ApplyConfiguration for metadata.annotations (E5: auto-creates parent map; JSONPatch on absent parent fails)
+#   - MAP does NOT touch k8s.v1.cni.cncf.io/networks (composed by garuda_guest in Terraform)
+#   - MAP does NOT write net.garuda-tunnel/profile-rev (Terraform/garuda_guest key — spec §4.5)
+#   - CEL expressions must NOT contain # comments (CEL has no comment syntax)
+#   - CEL optional indexing .?['key'] is NOT supported on k3s v1.36.1; use 'key' in map ? map['key'] : default
+#   - capabilities.add in initContainers is +listType=atomic; ApplyConfiguration blocked for this field;
+#     capabilities are injected via JSONPatch after the initContainer ApplyConfiguration (Phase 3 finding)
+#     Full FRR-required set (8 caps): NET_ADMIN+NET_RAW+SYS_ADMIN (fabric baseline);
+#     SETUID+SETGID (FRR privilege-drop to frr user); DAC_OVERRIDE (watchfrr pid write as root);
+#     NET_BIND_SERVICE (mgmtd/ospfd bind <1024 ports); CHOWN (state dir ownership).
+#   - sysctls JSONPatch path requires /spec/securityContext and /spec/securityContext/sysctls to exist;
+#     sysctls injection is idempotent: each sysctl is only added if not already present in the pod spec.
+#     pods MUST declare spec.securityContext.sysctls (can be [] or a pre-populated list) for the
+#     array-init guard to work correctly.
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: garuda-inject-fabric
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+spec:
+  failurePolicy: Fail
+  reinvocationPolicy: Never
+  paramKind:
+    apiVersion: v1
+    kind: ConfigMap
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: has-garuda-profile
+      expression: >
+        has(object.metadata.labels) && 'net.garuda-tunnel/profile' in object.metadata.labels
+  variables:
+    - name: profileName
+      expression: >
+        object.metadata.?labels['net.garuda-tunnel/profile'].orValue("")
+    - name: annots
+      expression: >
+        object.metadata.?annotations.orValue({})
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: |
+          Object{
+            metadata: Object.metadata{
+              annotations: {
+                "net.garuda-tunnel/profile-observed-rev": params.metadata.resourceVersion
+              }
+            }
+          }
+
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: |
+          Object{
+            spec: Object.spec{
+              initContainers: [
+                Object.spec.initContainers{
+                  name: "frr-sidecar",
+                  restartPolicy: "Always",
+                  image: ('net.garuda-tunnel/sidecar-image' in variables.annots) ? variables.annots['net.garuda-tunnel/sidecar-image'] : params.data['sidecar_image'],
+                  env: [
+                    Object.spec.initContainers.env{
+                      name: "PROFILE",
+                      value: variables.profileName
+                    },
+                    Object.spec.initContainers.env{
+                      name: "ROUTER_ID",
+                      value: ('net.garuda-tunnel/router-id' in variables.annots) ? variables.annots['net.garuda-tunnel/router-id'] : ""
+                    },
+                    Object.spec.initContainers.env{
+                      name: "OSPF_INTERFACES",
+                      value: ('net.garuda-tunnel/interfaces' in variables.annots) ? variables.annots['net.garuda-tunnel/interfaces'] : ""
+                    },
+                    Object.spec.initContainers.env{
+                      name: "OSPF_PASSIVE_INTERFACES",
+                      value: ('net.garuda-tunnel/passive-interfaces' in variables.annots) ? variables.annots['net.garuda-tunnel/passive-interfaces'] : ""
+                    },
+                    Object.spec.initContainers.env{
+                      name: "PBR_TRANSIT_TAG",
+                      value: ('net.garuda-tunnel/transit-interfaces' in variables.annots) ? "201" : ""
+                    },
+                    Object.spec.initContainers.env{
+                      name: "PBR_TRANSIT_INTERFACES",
+                      value: ('net.garuda-tunnel/transit-interfaces' in variables.annots) ? variables.annots['net.garuda-tunnel/transit-interfaces'] : ""
+                    }
+                  ],
+                  volumeMounts: [
+                    Object.spec.initContainers.volumeMounts{
+                      name: "garuda-profile",
+                      mountPath: "/etc/garuda/profile",
+                      readOnly: true
+                    },
+                    Object.spec.initContainers.volumeMounts{
+                      name: "garuda-intent",
+                      mountPath: "/etc/garuda/intent",
+                      readOnly: true
+                    }
+                  ] + (
+                    ('net.garuda-tunnel/frr-extra-configmap' in variables.annots) ?
+                    [Object.spec.initContainers.volumeMounts{
+                      name: "garuda-extra",
+                      mountPath: "/etc/garuda/extra",
+                      readOnly: true
+                    }] : []
+                  ) + (
+                    ('net.garuda-tunnel/frr-raw-configmap' in variables.annots) ?
+                    [Object.spec.initContainers.volumeMounts{
+                      name: "garuda-raw",
+                      mountPath: "/etc/garuda/raw",
+                      readOnly: true
+                    }] : []
+                  ),
+                  readinessProbe: Object.spec.initContainers.readinessProbe{
+                    httpGet: Object.spec.initContainers.readinessProbe.httpGet{
+                      path: "/readyz",
+                      port: 9179
+                    },
+                    initialDelaySeconds: 5,
+                    periodSeconds: 10
+                  }
+                }
+              ]
+            }
+          }
+
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: |
+          Object{
+            spec: Object.spec{
+              volumes: [
+                Object.spec.volumes{
+                  name: "garuda-profile",
+                  configMap: Object.spec.volumes.configMap{
+                    name: params.metadata.name
+                  }
+                }
+              ] + (
+                ('net.garuda-tunnel/frr-extra-configmap' in variables.annots) ?
+                [Object.spec.volumes{
+                  name: "garuda-extra",
+                  configMap: Object.spec.volumes.configMap{
+                    name: variables.annots['net.garuda-tunnel/frr-extra-configmap']
+                  }
+                }] : []
+              ) + (
+                ('net.garuda-tunnel/frr-raw-configmap' in variables.annots) ?
+                [Object.spec.volumes{
+                  name: "garuda-raw",
+                  configMap: Object.spec.volumes.configMap{
+                    name: variables.annots['net.garuda-tunnel/frr-raw-configmap']
+                  }
+                }] : []
+              )
+            }
+          }
+
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: |
+          (
+            !has(object.spec.initContainers) ? [] :
+            [0, 1, 2, 3].filter(idx,
+              idx < object.spec.initContainers.size() &&
+              object.spec.initContainers[idx].name == "frr-sidecar"
+            ).map(idx, [
+              JSONPatch{op: "add",
+                        path: "/spec/initContainers/" + string(idx) + "/securityContext",
+                        value: {
+                          "capabilities": {
+                            "drop": ["ALL"],
+                            "add": ["NET_ADMIN", "NET_RAW", "SYS_ADMIN",
+                                    "NET_BIND_SERVICE", "SETUID", "SETGID",
+                                    "CHOWN", "DAC_OVERRIDE"]
+                          }
+                        }}
+            ]).flatten()
+          ) + (has(object.spec.securityContext) && has(object.spec.securityContext.sysctls) ?
+            [] :
+            (has(object.spec.securityContext) ?
+              [JSONPatch{op: "add", path: "/spec/securityContext/sysctls", value: []}] :
+              [
+                JSONPatch{op: "add", path: "/spec/securityContext", value: {}},
+                JSONPatch{op: "add", path: "/spec/securityContext/sysctls", value: []}
+              ]
+            )
+          ) + (
+            (has(object.spec.securityContext) && has(object.spec.securityContext.sysctls) &&
+             object.spec.securityContext.sysctls.exists(s, s.name == "net.ipv4.ip_forward")) ?
+            [] :
+            [JSONPatch{op: "add", path: "/spec/securityContext/sysctls/-",
+                      value: Object.spec.securityContext.sysctls{
+                        name: "net.ipv4.ip_forward", value: "1"}}]
+          ) + (
+            (has(object.spec.securityContext) && has(object.spec.securityContext.sysctls) &&
+             object.spec.securityContext.sysctls.exists(s, s.name == "net.ipv4.conf.all.rp_filter")) ?
+            [] :
+            [JSONPatch{op: "add", path: "/spec/securityContext/sysctls/-",
+                      value: Object.spec.securityContext.sysctls{
+                        name: "net.ipv4.conf.all.rp_filter", value: "2"}}]
+          ) + [
+            JSONPatch{op: "add", path: "/spec/volumes/-",
+                     value: Object.spec.volumes{
+                       name: "garuda-intent",
+                       downwardAPI: Object.spec.volumes.downwardAPI{
+                         items: [
+                           Object.spec.volumes.downwardAPI.items{
+                             path: "annotations",
+                             fieldRef: Object.spec.volumes.downwardAPI.items.fieldRef{
+                               fieldPath: "metadata.annotations"
+                             }
+                           }
+                         ]
+                       }
+                     }}
+          ]
+---
+# Source: garuda/templates/map-inject-fabric.yaml
+# MAPBinding: ospf-router profile
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: garuda-inject-fabric-ospf-router
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+spec:
+  policyName: garuda-inject-fabric
+  paramRef:
+    name: garuda-profile-ospf-router
+    namespace: "garuda"
+    parameterNotFoundAction: Deny
+  matchResources:
+    objectSelector:
+      matchExpressions:
+        - key: net.garuda-tunnel/profile
+          operator: In
+          values: ["ospf-router"]
+---
+# Source: garuda/templates/map-inject-fabric.yaml
+# MAPBinding: transit-provider profile
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: garuda-inject-fabric-transit-provider
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+spec:
+  policyName: garuda-inject-fabric
+  paramRef:
+    name: garuda-profile-transit-provider
+    namespace: "garuda"
+    parameterNotFoundAction: Deny
+  matchResources:
+    objectSelector:
+      matchExpressions:
+        - key: net.garuda-tunnel/profile
+          operator: In
+          values: ["transit-provider"]
+---
+# Source: garuda/templates/map-inject-fabric.yaml
+# MAPBinding: border profile
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: garuda-inject-fabric-border
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+spec:
+  policyName: garuda-inject-fabric
+  paramRef:
+    name: garuda-profile-border
+    namespace: "garuda"
+    parameterNotFoundAction: Deny
+  matchResources:
+    objectSelector:
+      matchExpressions:
+        - key: net.garuda-tunnel/profile
+          operator: In
+          values: ["border"]
 
 ---
 # Source: garuda/templates/nad-backbone.yaml
@@ -97,3 +589,106 @@ spec:
         }]]
       }
     }
+
+---
+# Source: garuda/templates/vap-validate-intent.yaml
+# ValidatingAdmissionPolicy: garuda-validate-intent
+# API: admissionregistration.k8s.io/v1 (GA since k8s v1.30)
+# Enforces: profile label presence, XOR invariants, schema checks.
+# Does NOT validate NAD names (allowlist dropped — spec §7.1).
+# No paramKind required (no allowlist ConfigMap param).
+#
+# CRITICAL guards (smoke 2 finding E1):
+# matchConditions check has(object.metadata.annotations) — without this guard,
+# VAP with failurePolicy: Fail DENIES ALL pods without annotations cluster-wide.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: garuda-validate-intent
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        # CREATE + UPDATE: UPDATE catches out-of-band kubectl edit/patch on annotations.
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: has-garuda-annotation
+      # Guard: has(object.metadata.annotations) prevents crash on bare pods.
+      # Smoke 2 finding E1: unguarded access with failurePolicy: Fail denies ALL bare pods cluster-wide.
+      # Only pods bearing at least one net.garuda-tunnel/ annotation are validated.
+      expression: >
+        has(object.metadata.annotations) &&
+        object.metadata.annotations.exists(k, k.startsWith('net.garuda-tunnel/'))
+  variables:
+    - name: profileName
+      # matchConditions guarantee has(object.metadata.annotations) but NOT has(object.metadata.labels).
+      # .? optional accessor is required here — labels may be absent on pods with only annotations.
+      expression: >
+        object.metadata.?labels['net.garuda-tunnel/profile'].orValue("")
+    - name: hasTransitInterfaces
+      # matchConditions guarantee has(object.metadata.annotations) so direct .?annotations.orValue({}) is safe.
+      expression: >
+        'net.garuda-tunnel/transit-interfaces' in object.metadata.?annotations.orValue({})
+  validations:
+    # Rule 1: profile LABEL is required when any net.garuda-tunnel/ annotation is present.
+    # Rationale: MAP matchConditions dispatch on the profile label; without it the MAP
+    # does not fire and the pod reaches VAP in an inconsistent state.
+    - expression: >
+        variables.profileName != ""
+      message: >
+        net.garuda-tunnel/profile label is required when any net.garuda-tunnel/ annotation is set.
+    # Rule 2: XOR invariant — transit-provider profile MUST NOT carry transit-interfaces.
+    # Mirrors the hard fail in frr-sidecar-internal/_container.tpl lines 29-30 (spec §4.2).
+    # transit-provider IS the PBR provider; it must not also be a PBR consumer.
+    - expression: >
+        !(variables.profileName == "transit-provider" && variables.hasTransitInterfaces)
+      message: >
+        Profile 'transit-provider' must not carry net.garuda-tunnel/transit-interfaces
+        (XOR invariant — mirrors frr-sidecar-internal _container.tpl lines 29-30).
+    # Rule 3: raw-mode XOR — frr-mode=raw forbids interfaces and redistribute annotations.
+    # The raw ConfigMap is the authoritative FRR source; per-interface/redistribute annotations
+    # would conflict with it. Spec §15 (Tier 3 escape hatch).
+    - expression: >
+        !(
+          object.metadata.?annotations['net.garuda-tunnel/frr-mode'].orValue("") == "raw" &&
+          (
+            'net.garuda-tunnel/interfaces' in object.metadata.?annotations.orValue({}) ||
+            'net.garuda-tunnel/redistribute' in object.metadata.?annotations.orValue({})
+          )
+        )
+      message: >
+        net.garuda-tunnel/frr-mode=raw forbids net.garuda-tunnel/interfaces and
+        net.garuda-tunnel/redistribute — the raw ConfigMap is the authoritative FRR source;
+        per-interface and redistribute annotations conflict with it.
+---
+# Source: garuda/templates/vap-validate-intent.yaml
+# ValidatingAdmissionPolicyBinding: garuda-validate-intent-binding
+# No paramRef — VAP has no paramKind (allowlist dropped per spec §7.1).
+# namespaceSelector excludes kube-system so the platform never gates itself.
+# validationActions: [Deny] — hard rejection at admission.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: garuda-validate-intent-binding
+  labels:
+    app.kubernetes.io/name: garuda
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: g
+    garuda.managed-by: helm
+spec:
+  policyName: garuda-validate-intent
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system"]

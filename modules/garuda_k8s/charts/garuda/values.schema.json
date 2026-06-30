@@ -84,6 +84,11 @@
         }
       },
       "additionalProperties": false
+    },
+    "frr_sidecar_image": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Image reference for the frr-sidecar native sidecar injected by MAP. Written into all three profile ConfigMaps under data.sidecar_image."
     }
   }
 }

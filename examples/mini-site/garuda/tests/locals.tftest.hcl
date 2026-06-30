@@ -140,7 +140,7 @@ run "tunnel_facts_structure" {
   }
 }
 
-run "wireguard_kube_inputs_map_edge_ospf" {
+run "wireguard_kube_inputs_map_edge" {
   command = plan
 
   assert {
@@ -149,28 +149,8 @@ run "wireguard_kube_inputs_map_edge_ospf" {
   }
 
   assert {
-    condition     = local.wireguard_kube_inputs["pt"].ospf.router_id == var.edges["pt"].ospf_router_id_peer
-    error_message = "pt kube OSPF router_id must come from var.edges.pt.ospf_router_id_peer"
-  }
-
-  assert {
-    condition     = local.wireguard_kube_inputs["pt"].ospf.interfaces == [module.wireguard_tunnel["pt"].peers["edge"].kernel_ifname]
-    error_message = "pt kube OSPF interfaces must contain only the edge WireGuard kernel interface"
-  }
-
-  assert {
     condition     = local.wireguard_kube_inputs["de"].config.kernel_ifname == module.wireguard_tunnel["de"].peers["edge"].kernel_ifname
     error_message = "de kube WireGuard config must use the edge kernel interface name from wireguard_tunnel"
-  }
-
-  assert {
-    condition     = local.wireguard_kube_inputs["de"].ospf.router_id == var.edges["de"].ospf_router_id_peer
-    error_message = "de kube OSPF router_id must come from var.edges.de.ospf_router_id_peer"
-  }
-
-  assert {
-    condition     = local.wireguard_kube_inputs["de"].ospf.interfaces == [module.wireguard_tunnel["de"].peers["edge"].kernel_ifname]
-    error_message = "de kube OSPF interfaces must contain only the edge WireGuard kernel interface"
   }
 
   assert {
@@ -181,6 +161,31 @@ run "wireguard_kube_inputs_map_edge_ospf" {
   assert {
     condition     = local.wireguard_kube_inputs["de"].allowed_nets == ["0.0.0.0/0", "224.0.0.0/4"]
     error_message = "de kube WireGuard allowed_nets must preserve default route plus OSPF multicast"
+  }
+}
+
+run "garuda_guest_edge_wg_intent" {
+  command = plan
+
+  # OSPF intent now lives in garuda_guest modules; validate annotations emitted.
+  assert {
+    condition     = module.garuda_guest_wireguard_kube_pt.annotations["net.garuda-tunnel/router-id"] == var.edges["pt"].ospf_router_id_peer
+    error_message = "pt edge garuda_guest must emit router-id annotation from ospf_router_id_peer"
+  }
+
+  assert {
+    condition     = module.garuda_guest_wireguard_kube_de.annotations["net.garuda-tunnel/router-id"] == var.edges["de"].ospf_router_id_peer
+    error_message = "de edge garuda_guest must emit router-id annotation from ospf_router_id_peer"
+  }
+
+  assert {
+    condition     = !contains(keys(module.garuda_guest_wireguard_kube_pt.annotations), "net.garuda-tunnel/default-originate")
+    error_message = "pt edge garuda_guest must NOT emit default-originate (prod: only ipt-server originates the default)"
+  }
+
+  assert {
+    condition     = module.garuda_guest_wireguard_kube_pt.labels["net.garuda-tunnel/profile"] == "ospf-router"
+    error_message = "pt edge garuda_guest must emit profile=ospf-router label"
   }
 }
 
@@ -314,30 +319,46 @@ run "hub_tunnel_kubeconfig_path_contract" {
   }
 }
 
-run "wireguard_kube_hub_inputs_router_ids" {
+run "garuda_guest_hub_wg_intent" {
   command = plan
 
+  # Hub-side WireGuard OSPF intent now lives in garuda_guest modules.
   assert {
-    condition     = local.wireguard_kube_hub_inputs["pt"].ospf.router_id == var.edges["pt"].ospf_router_id_hub
-    error_message = "hub-side wg pt OSPF router_id must come from ospf_router_id_hub"
+    condition     = module.garuda_guest_wireguard_kube_hub["pt"].annotations["net.garuda-tunnel/router-id"] == var.edges["pt"].ospf_router_id_hub
+    error_message = "hub-side wg pt garuda_guest must emit router-id from ospf_router_id_hub"
   }
 
   assert {
-    condition     = local.wireguard_kube_hub_inputs["de"].ospf.router_id == var.edges["de"].ospf_router_id_hub
-    error_message = "hub-side wg de OSPF router_id must come from ospf_router_id_hub"
+    condition     = module.garuda_guest_wireguard_kube_hub["de"].annotations["net.garuda-tunnel/router-id"] == var.edges["de"].ospf_router_id_hub
+    error_message = "hub-side wg de garuda_guest must emit router-id from ospf_router_id_hub"
   }
 }
 
-run "hub_structured_ospf_inputs" {
+run "garuda_guest_hub_workloads_intent" {
   command = plan
 
   assert {
-    condition     = local.firezone_kube_ospf.router_id == var.ospf_router_ids.firezone
-    error_message = "firezone kube OSPF router_id must come from var.ospf_router_ids.firezone"
+    condition     = module.garuda_guest_firezone_kube.annotations["net.garuda-tunnel/router-id"] == var.ospf_router_ids.firezone
+    error_message = "firezone garuda_guest must emit router-id from var.ospf_router_ids.firezone"
   }
 
   assert {
-    condition     = local.ipt_server_kube_ospf.router_id == var.ospf_router_ids.ipt_server
-    error_message = "ipt_server kube OSPF router_id must come from var.ospf_router_ids.ipt_server"
+    condition     = module.garuda_guest_firezone_kube.annotations["net.garuda-tunnel/passive-interfaces"] == "wg-firezone"
+    error_message = "firezone garuda_guest must emit passive-interfaces=wg-firezone (prod: wg-firezone is OSPF-passive)"
+  }
+
+  assert {
+    condition     = module.garuda_guest_ipt_server_kube.annotations["net.garuda-tunnel/router-id"] == var.ospf_router_ids.ipt_server
+    error_message = "ipt_server garuda_guest must emit router-id from var.ospf_router_ids.ipt_server"
+  }
+
+  assert {
+    condition     = module.garuda_guest_ipt_server_kube.labels["net.garuda-tunnel/profile"] == "transit-provider"
+    error_message = "ipt_server garuda_guest must emit profile=transit-provider label"
+  }
+
+  assert {
+    condition     = module.garuda_guest_border_router.labels["net.garuda-tunnel/profile"] == "border"
+    error_message = "border_router garuda_guest must emit profile=border label"
   }
 }

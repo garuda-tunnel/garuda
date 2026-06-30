@@ -87,6 +87,6 @@ output "ipt_routes_primary_gws" {
 }
 
 output "ipt_server_label_router_id" {
-  description = "Router id passed into module.ipt_server_kube.ospf.router_id."
-  value       = local.ipt_server_kube_ospf.router_id
+  description = "Router id for the ipt_server workload (now from garuda_guest intent)."
+  value       = var.ospf_router_ids.ipt_server
 }

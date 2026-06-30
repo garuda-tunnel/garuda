@@ -43,3 +43,14 @@ podReaper:
     limits:
       cpu: "50m"
       memory: "64Mi"
+
+# frr_sidecar_image: image reference for the frr-sidecar native sidecar.
+# Written into all three profile ConfigMaps (garuda-profile-{ospf-router,transit-provider,border})
+# under data.sidecar_image. Bumped here when frr-sidecar-internal cuts a new release.
+# 0.3.3 pinned: frr-sidecar render.py prod-parity fixes — active OSPF interfaces emit
+# hello 5 / dead 15 (D1/D2); redistribute rendered at column 0 so the profile template's
+# 2-space indent lands it inside `router ospf` (D3); passive-interface support via
+# OSPF_PASSIVE_INTERFACES (D11). Pairs with chart 0.7.2 (transit route-map + passive env).
+# Override per-stand with --set frr_sidecar_image=<ref>.
+# Override per-pod with net.garuda-tunnel/sidecar-image annotation (Tier 1 escape hatch, spec §15).
+frr_sidecar_image: "ghcr.io/garuda-tunnel/garuda-frr-sidecar:0.3.3"
