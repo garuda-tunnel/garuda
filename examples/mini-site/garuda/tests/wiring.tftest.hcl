@@ -7,10 +7,14 @@ mock_provider "tls" {}
 mock_provider "dns" {}
 mock_provider "helm" {}
 mock_provider "kubernetes" {}
-mock_provider "helm" { alias = "pt" }
-mock_provider "kubernetes" { alias = "pt" }
-mock_provider "helm" { alias = "de" }
-mock_provider "kubernetes" { alias = "de" }
+mock_provider "helm" {
+  alias    = "edge"
+  for_each = var.edges
+}
+mock_provider "kubernetes" {
+  alias    = "edge"
+  for_each = var.edges
+}
 mock_provider "helm" { alias = "hub" }
 mock_provider "kubernetes" { alias = "hub" }
 
@@ -173,22 +177,22 @@ run "edge_k3s_modules_are_wired" {
   command = plan
 
   assert {
-    condition     = module.garuda_k8s_pt.namespace == "garuda"
+    condition     = module.garuda_k8s["pt"].namespace == "garuda"
     error_message = "pt Kubernetes bootstrap must create/use namespace garuda"
   }
 
   assert {
-    condition     = module.garuda_k8s_de.namespace == "garuda"
+    condition     = module.garuda_k8s["de"].namespace == "garuda"
     error_message = "de Kubernetes bootstrap must create/use namespace garuda"
   }
 
   assert {
-    condition     = module.wireguard_kube_pt.deployment_name == "wg-pt"
+    condition     = module.wireguard_kube_edge["pt"].deployment_name == "wg-pt"
     error_message = "pt Kubernetes WireGuard deployment must be wg-pt"
   }
 
   assert {
-    condition     = module.wireguard_kube_de.deployment_name == "wg-de"
+    condition     = module.wireguard_kube_edge["de"].deployment_name == "wg-de"
     error_message = "de Kubernetes WireGuard deployment must be wg-de"
   }
 }

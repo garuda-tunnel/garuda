@@ -5,63 +5,38 @@ provider "routeros" {
   insecure = true
 }
 
-# --- Edge k3s providers: one explicit alias per edge slug. ---
+# --- Edge k3s providers: one instanced pair over var.edges. ---
 #
-# Each alias is fed by local.edges_kubeconfig_path[<slug>] from the
-# garuda-tunnel state file. Under variant C of the migration (see
-# spec 2026-05-30-garuda-tunnel-kube-targets-migration-design.md),
-# garuda-tunnel materializes a fully patched kubeconfig per node:
-# server: is rewritten to the local forwarded port, tls-server-name is
-# set from the SAN probe, and the embedded CA/cert/key match. So a
-# single config_path is sufficient.
+# Each instance is fed by local.edges_kubeconfig_path[each.key] from the
+# garuda-tunnel state file (variant C: garuda-tunnel materializes a fully
+# patched kubeconfig per node, so a single config_path is sufficient).
 #
-# Inert branch: when the path is "" (mock-state, tofu test), we set
-# config_path = null AND pin host to an unreachable loopback port with
-# empty cert material. This stops the kubernetes/helm providers from
-# falling back to $KUBECONFIG / ~/.kube/config.
+# Inert branch: when the path is "" (mock-state, tofu test), config_path is
+# null AND host is pinned to an unreachable loopback with empty cert material
+# so the providers never fall back to $KUBECONFIG / ~/.kube/config.
 
 provider "helm" {
-  alias = "pt"
+  alias    = "edge"
+  for_each = var.edges
 
   kubernetes {
-    config_path            = local.edges_kubeconfig_path["pt"] != "" ? local.edges_kubeconfig_path["pt"] : null
-    host                   = local.edges_kubeconfig_path["pt"] == "" ? "https://127.0.0.1:0" : null
-    cluster_ca_certificate = local.edges_kubeconfig_path["pt"] == "" ? "" : null
-    client_certificate     = local.edges_kubeconfig_path["pt"] == "" ? "" : null
-    client_key             = local.edges_kubeconfig_path["pt"] == "" ? "" : null
+    config_path            = local.edges_kubeconfig_path[each.key] != "" ? local.edges_kubeconfig_path[each.key] : null
+    host                   = local.edges_kubeconfig_path[each.key] == "" ? "https://127.0.0.1:0" : null
+    cluster_ca_certificate = local.edges_kubeconfig_path[each.key] == "" ? "" : null
+    client_certificate     = local.edges_kubeconfig_path[each.key] == "" ? "" : null
+    client_key             = local.edges_kubeconfig_path[each.key] == "" ? "" : null
   }
 }
 
 provider "kubernetes" {
-  alias = "pt"
+  alias    = "edge"
+  for_each = var.edges
 
-  config_path            = local.edges_kubeconfig_path["pt"] != "" ? local.edges_kubeconfig_path["pt"] : null
-  host                   = local.edges_kubeconfig_path["pt"] == "" ? "https://127.0.0.1:0" : null
-  cluster_ca_certificate = local.edges_kubeconfig_path["pt"] == "" ? "" : null
-  client_certificate     = local.edges_kubeconfig_path["pt"] == "" ? "" : null
-  client_key             = local.edges_kubeconfig_path["pt"] == "" ? "" : null
-}
-
-provider "helm" {
-  alias = "de"
-
-  kubernetes {
-    config_path            = local.edges_kubeconfig_path["de"] != "" ? local.edges_kubeconfig_path["de"] : null
-    host                   = local.edges_kubeconfig_path["de"] == "" ? "https://127.0.0.1:0" : null
-    cluster_ca_certificate = local.edges_kubeconfig_path["de"] == "" ? "" : null
-    client_certificate     = local.edges_kubeconfig_path["de"] == "" ? "" : null
-    client_key             = local.edges_kubeconfig_path["de"] == "" ? "" : null
-  }
-}
-
-provider "kubernetes" {
-  alias = "de"
-
-  config_path            = local.edges_kubeconfig_path["de"] != "" ? local.edges_kubeconfig_path["de"] : null
-  host                   = local.edges_kubeconfig_path["de"] == "" ? "https://127.0.0.1:0" : null
-  cluster_ca_certificate = local.edges_kubeconfig_path["de"] == "" ? "" : null
-  client_certificate     = local.edges_kubeconfig_path["de"] == "" ? "" : null
-  client_key             = local.edges_kubeconfig_path["de"] == "" ? "" : null
+  config_path            = local.edges_kubeconfig_path[each.key] != "" ? local.edges_kubeconfig_path[each.key] : null
+  host                   = local.edges_kubeconfig_path[each.key] == "" ? "https://127.0.0.1:0" : null
+  cluster_ca_certificate = local.edges_kubeconfig_path[each.key] == "" ? "" : null
+  client_certificate     = local.edges_kubeconfig_path[each.key] == "" ? "" : null
+  client_key             = local.edges_kubeconfig_path[each.key] == "" ? "" : null
 }
 
 provider "helm" {

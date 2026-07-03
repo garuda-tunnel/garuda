@@ -34,37 +34,23 @@ module "wireguard_tunnel" {
 }
 
 # --- Kubernetes namespace and CNI bootstrap: edges ---
-# One explicit module per edge. Each module receives its own
-# helm.<slug> / kubernetes.<slug> aliased providers from providers.tf.
-# Adding a third edge requires three changes: a new var.edges entry,
-# a new alias pair in providers.tf, and a new module block here.
+# One instanced module over var.edges. Each instance receives its own
+# helm.edge[<slug>] / kubernetes.edge[<slug>] provider from providers.tf.
+# Adding a third edge is now a single var.edges (inputs.tfvars.yaml) entry.
 
-module "garuda_k8s_pt" {
-  source = "./modules/garuda_k8s"
+module "garuda_k8s" {
+  for_each = var.edges
+  source   = "./modules/garuda_k8s"
 
   providers = {
-    helm       = helm.pt
-    kubernetes = kubernetes.pt
+    helm       = helm.edge[each.key]
+    kubernetes = kubernetes.edge[each.key]
   }
 
   namespace       = "garuda"
   backbone_subnet = var.backbone_subnet
   border_subnet   = var.border_subnet
-  kubeconfig_path = local.edges_kubeconfig_path["pt"]
-}
-
-module "garuda_k8s_de" {
-  source = "./modules/garuda_k8s"
-
-  providers = {
-    helm       = helm.de
-    kubernetes = kubernetes.de
-  }
-
-  namespace       = "garuda"
-  backbone_subnet = var.backbone_subnet
-  border_subnet   = var.border_subnet
-  kubeconfig_path = local.edges_kubeconfig_path["de"]
+  kubeconfig_path = local.edges_kubeconfig_path[each.key]
 }
 
 # --- garuda_guest intent for edge WireGuard workloads ---
@@ -73,76 +59,41 @@ module "garuda_k8s_de" {
 # default (docs/artifacts/2026-06-25-vxxlcx-prod-frr-ground-truth.md §2 / Q4). The
 # earlier default_originate="true" (disproven spec §14 #7) is removed.
 
-module "garuda_guest_wireguard_kube_pt" {
-  source = "./modules/garuda_guest"
+module "garuda_guest_wireguard_kube_edge" {
+  for_each = var.edges
+  source   = "./modules/garuda_guest"
 
   profile              = "ospf-router"
   garuda_chart_version = local.garuda_chart_version
-  ospf_router_id       = var.edges["pt"].ospf_router_id_peer
+  ospf_router_id       = each.value.ospf_router_id_peer
   networks             = ["backbone", "border"]
-  interfaces           = module.wireguard_tunnel["pt"].peers["edge"].kernel_ifname
-}
-
-module "garuda_guest_wireguard_kube_de" {
-  source = "./modules/garuda_guest"
-
-  profile              = "ospf-router"
-  garuda_chart_version = local.garuda_chart_version
-  ospf_router_id       = var.edges["de"].ospf_router_id_peer
-  networks             = ["backbone", "border"]
-  interfaces           = module.wireguard_tunnel["de"].peers["edge"].kernel_ifname
+  interfaces           = module.wireguard_tunnel[each.key].peers["edge"].kernel_ifname
 }
 
 # --- WireGuard Kubernetes workloads: edge side (one deployment per edge) ---
 
-module "wireguard_kube_pt" {
-  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v1.2.0"
-  chart_version = "1.2.0"
+module "wireguard_kube_edge" {
+  for_each      = var.edges
+  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  chart_version = "2.0.0"
 
   providers = {
-    helm       = helm.pt
-    kubernetes = kubernetes.pt
+    helm       = helm.edge[each.key]
+    kubernetes = kubernetes.edge[each.key]
   }
 
-  namespace       = module.garuda_k8s_pt.namespace
-  name            = "wg-pt"
-  config          = local.wireguard_kube_inputs["pt"].config
-  peer            = local.wireguard_kube_inputs["pt"].peer
-  allowed_nets    = local.wireguard_kube_inputs["pt"].allowed_nets
-  nic_attach      = ["backbone", "border"]
+  namespace       = module.garuda_k8s[each.key].namespace
+  name            = "wg-${each.key}"
+  self            = module.wireguard_tunnel[each.key].peers["edge"]
+  remote          = module.wireguard_tunnel[each.key].peers["core"]
   wireguard_image = var.wireguard_image
-  annotations     = module.garuda_guest_wireguard_kube_pt.annotations
-  labels          = module.garuda_guest_wireguard_kube_pt.labels
-  configmaps      = module.garuda_guest_wireguard_kube_pt.configmaps
-  ospf            = null
+  annotations     = module.garuda_guest_wireguard_kube_edge[each.key].annotations
+  labels          = module.garuda_guest_wireguard_kube_edge[each.key].labels
+  configmaps      = module.garuda_guest_wireguard_kube_edge[each.key].configmaps
   mtu_policy      = local.mtu_policy
-
-  depends_on = [module.garuda_k8s_pt]
-}
-
-module "wireguard_kube_de" {
-  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v1.2.0"
-  chart_version = "1.2.0"
-
-  providers = {
-    helm       = helm.de
-    kubernetes = kubernetes.de
-  }
-
-  namespace       = module.garuda_k8s_de.namespace
-  name            = "wg-de"
-  config          = local.wireguard_kube_inputs["de"].config
-  peer            = local.wireguard_kube_inputs["de"].peer
-  allowed_nets    = local.wireguard_kube_inputs["de"].allowed_nets
-  nic_attach      = ["backbone", "border"]
-  wireguard_image = var.wireguard_image
-  annotations     = module.garuda_guest_wireguard_kube_de.annotations
-  labels          = module.garuda_guest_wireguard_kube_de.labels
-  configmaps      = module.garuda_guest_wireguard_kube_de.configmaps
-  ospf            = null
-  mtu_policy      = local.mtu_policy
-
-  depends_on = [module.garuda_k8s_de]
+  # No depends_on: module.garuda_k8s[each.key].namespace already builds a
+  # per-edge dependency. A module-wide depends_on=[module.garuda_k8s] would
+  # serialize every edge against every namespace — do NOT add it.
 }
 
 # --- WireGuard tunnel key-pair for hub-ros (RouterOS <-> hub) ---
@@ -170,18 +121,18 @@ module "wireguard_tunnel_hub_ros" {
 # --- WireGuard RouterOS module: RouterOS side of hub-ros tunnel ---
 
 module "wireguard_routeros_hub_ros" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//routeros?ref=v1.1.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard-internal.git//routeros?ref=v2.0.0"
 
   hostname       = var.routeros.hostname
-  config         = module.wireguard_tunnel_hub_ros.peers["edge"]
-  peer           = module.wireguard_tunnel_hub_ros.peers["core"]
+  self           = module.wireguard_tunnel_hub_ros.peers["edge"]
+  remote         = module.wireguard_tunnel_hub_ros.peers["core"]
   subnet         = local.hub_ros_facts.subnet_cidr
   allowed_nets   = ["0.0.0.0/0", "224.0.0.0/4"]
   interface_list = "LAN"
   mtu_policy     = local.mtu_policy
 
-  router_id = split("/", var.hub_ros.routeros_cidr)[0]
-  ospf_area = "0.0.0.0"
+  ospf_router_id = split("/", var.hub_ros.routeros_cidr)[0]
+  ospf_area      = "0.0.0.0"
 }
 
 # Default route into the hub-ros bypass routing table. Without this route,
@@ -240,8 +191,8 @@ module "garuda_guest_wireguard_kube_hub" {
 
 module "wireguard_kube_hub" {
   for_each      = var.edges
-  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v1.2.0"
-  chart_version = "1.2.0"
+  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  chart_version = "2.0.0"
 
   providers = {
     helm       = helm.hub
@@ -250,15 +201,12 @@ module "wireguard_kube_hub" {
 
   namespace       = module.garuda_k8s_hub.namespace
   name            = "wg-${each.key}"
-  config          = local.wireguard_kube_hub_inputs[each.key].config
-  peer            = local.wireguard_kube_hub_inputs[each.key].peer
-  allowed_nets    = local.wireguard_kube_hub_inputs[each.key].allowed_nets
-  nic_attach      = ["backbone", "border"]
+  self            = module.wireguard_tunnel[each.key].peers["core"]
+  remote          = module.wireguard_tunnel[each.key].peers["edge"]
   wireguard_image = var.wireguard_image
   annotations     = module.garuda_guest_wireguard_kube_hub[each.key].annotations
   labels          = module.garuda_guest_wireguard_kube_hub[each.key].labels
   configmaps      = module.garuda_guest_wireguard_kube_hub[each.key].configmaps
-  ospf            = null
   mtu_policy      = local.mtu_policy
 
   depends_on = [module.garuda_k8s_hub]
@@ -283,8 +231,8 @@ module "garuda_guest_wireguard_kube_hub_ros" {
 # --- Hub-side WireGuard kube deployment for RouterOS tunnel ---
 
 module "wireguard_kube_hub_ros" {
-  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v1.2.0"
-  chart_version = "1.2.0"
+  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  chart_version = "2.0.0"
 
   providers = {
     helm       = helm.hub
@@ -293,15 +241,12 @@ module "wireguard_kube_hub_ros" {
 
   namespace       = module.garuda_k8s_hub.namespace
   name            = "wg-hub-ros"
-  config          = local.wireguard_kube_hub_ros_inputs.config
-  peer            = local.wireguard_kube_hub_ros_inputs.peer
-  allowed_nets    = local.wireguard_kube_hub_ros_inputs.allowed_nets
-  nic_attach      = ["backbone"]
+  self            = module.wireguard_tunnel_hub_ros.peers["core"]
+  remote          = module.wireguard_tunnel_hub_ros.peers["edge"]
   wireguard_image = var.wireguard_image
   annotations     = module.garuda_guest_wireguard_kube_hub_ros.annotations
   labels          = module.garuda_guest_wireguard_kube_hub_ros.labels
   configmaps      = module.garuda_guest_wireguard_kube_hub_ros.configmaps
-  ospf            = null
   mtu_policy      = local.mtu_policy
 
   depends_on = [module.garuda_k8s_hub]
@@ -424,8 +369,8 @@ module "garuda_guest_ipt_server_kube" {
 # --- ipt_server (hub, k8s) ---
 
 module "ipt_server_kube" {
-  source        = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.2.0"
-  chart_version = "1.2.0"
+  source        = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.2.5"
+  chart_version = "1.2.5"
 
   providers = {
     helm       = helm.hub

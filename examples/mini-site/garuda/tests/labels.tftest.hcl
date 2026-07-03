@@ -7,10 +7,14 @@ mock_provider "tls" {}
 mock_provider "dns" {}
 mock_provider "helm" {}
 mock_provider "kubernetes" {}
-mock_provider "helm" { alias = "pt" }
-mock_provider "kubernetes" { alias = "pt" }
-mock_provider "helm" { alias = "de" }
-mock_provider "kubernetes" { alias = "de" }
+mock_provider "helm" {
+  alias    = "edge"
+  for_each = var.edges
+}
+mock_provider "kubernetes" {
+  alias    = "edge"
+  for_each = var.edges
+}
 mock_provider "helm" { alias = "hub" }
 mock_provider "kubernetes" { alias = "hub" }
 
@@ -134,7 +138,7 @@ run "pt_default_originate_via_garuda_guest" {
   }
 
   assert {
-    condition     = !contains(keys(module.garuda_guest_wireguard_kube_pt.annotations), "net.garuda-tunnel/default-originate")
+    condition     = !contains(keys(module.garuda_guest_wireguard_kube_edge["pt"].annotations), "net.garuda-tunnel/default-originate")
     error_message = "pt edge-side garuda_guest must NOT emit default-originate (prod: only ipt-server originates the default)"
   }
 }

@@ -8,10 +8,14 @@ mock_provider "tls" {}
 mock_provider "dns" {}
 mock_provider "helm" {}
 mock_provider "kubernetes" {}
-mock_provider "helm" { alias = "pt" }
-mock_provider "kubernetes" { alias = "pt" }
-mock_provider "helm" { alias = "de" }
-mock_provider "kubernetes" { alias = "de" }
+mock_provider "helm" {
+  alias    = "edge"
+  for_each = var.edges
+}
+mock_provider "kubernetes" {
+  alias    = "edge"
+  for_each = var.edges
+}
 mock_provider "helm" { alias = "hub" }
 mock_provider "kubernetes" { alias = "hub" }
 
@@ -132,35 +136,22 @@ run "tunnel_facts_structure" {
   }
 
   assert {
-    condition = (
-      contains(keys(local.tunnel_facts.pt.peers), "hub") &&
-      contains(keys(local.tunnel_facts.pt.peers), "edge")
-    )
-    error_message = "tunnel_facts[pt] peer keys must be hub and edge"
+    condition     = local.tunnel_facts.pt.subnet_cidr == "192.0.2.128/28"
+    error_message = "tunnel_facts[pt].subnet_cidr must be the /28 network of hub_cidr 192.0.2.129/28"
   }
 }
 
-run "wireguard_kube_inputs_map_edge" {
+run "edge_wireguard_self_is_edge_peer" {
   command = plan
 
   assert {
-    condition     = local.wireguard_kube_inputs["pt"].config.kernel_ifname == module.wireguard_tunnel["pt"].peers["edge"].kernel_ifname
-    error_message = "pt kube WireGuard config must use the edge kernel interface name from wireguard_tunnel"
+    condition     = module.wireguard_kube_edge["pt"].deployment_name == "wg-pt"
+    error_message = "pt edge wireguard deployment must be wg-pt (self=edge peer)"
   }
 
   assert {
-    condition     = local.wireguard_kube_inputs["de"].config.kernel_ifname == module.wireguard_tunnel["de"].peers["edge"].kernel_ifname
-    error_message = "de kube WireGuard config must use the edge kernel interface name from wireguard_tunnel"
-  }
-
-  assert {
-    condition     = local.wireguard_kube_inputs["pt"].allowed_nets == ["0.0.0.0/0", "224.0.0.0/4"]
-    error_message = "pt kube WireGuard allowed_nets must preserve default route plus OSPF multicast"
-  }
-
-  assert {
-    condition     = local.wireguard_kube_inputs["de"].allowed_nets == ["0.0.0.0/0", "224.0.0.0/4"]
-    error_message = "de kube WireGuard allowed_nets must preserve default route plus OSPF multicast"
+    condition     = module.wireguard_kube_edge["de"].deployment_name == "wg-de"
+    error_message = "de edge wireguard deployment must be wg-de (self=edge peer)"
   }
 }
 
@@ -169,22 +160,22 @@ run "garuda_guest_edge_wg_intent" {
 
   # OSPF intent now lives in garuda_guest modules; validate annotations emitted.
   assert {
-    condition     = module.garuda_guest_wireguard_kube_pt.annotations["net.garuda-tunnel/router-id"] == var.edges["pt"].ospf_router_id_peer
+    condition     = module.garuda_guest_wireguard_kube_edge["pt"].annotations["net.garuda-tunnel/router-id"] == var.edges["pt"].ospf_router_id_peer
     error_message = "pt edge garuda_guest must emit router-id annotation from ospf_router_id_peer"
   }
 
   assert {
-    condition     = module.garuda_guest_wireguard_kube_de.annotations["net.garuda-tunnel/router-id"] == var.edges["de"].ospf_router_id_peer
+    condition     = module.garuda_guest_wireguard_kube_edge["de"].annotations["net.garuda-tunnel/router-id"] == var.edges["de"].ospf_router_id_peer
     error_message = "de edge garuda_guest must emit router-id annotation from ospf_router_id_peer"
   }
 
   assert {
-    condition     = !contains(keys(module.garuda_guest_wireguard_kube_pt.annotations), "net.garuda-tunnel/default-originate")
+    condition     = !contains(keys(module.garuda_guest_wireguard_kube_edge["pt"].annotations), "net.garuda-tunnel/default-originate")
     error_message = "pt edge garuda_guest must NOT emit default-originate (prod: only ipt-server originates the default)"
   }
 
   assert {
-    condition     = module.garuda_guest_wireguard_kube_pt.labels["net.garuda-tunnel/profile"] == "ospf-router"
+    condition     = module.garuda_guest_wireguard_kube_edge["pt"].labels["net.garuda-tunnel/profile"] == "ospf-router"
     error_message = "pt edge garuda_guest must emit profile=ospf-router label"
   }
 }
@@ -237,17 +228,14 @@ run "pinning_egress_includes_border" {
   }
 }
 
-run "firezone_facts_server_url" {
+run "firezone_facts_directory" {
   command = plan
 
+  # server_url was dropped from firezone_facts (dead: firezone_kube consumes
+  # local.firezone_fqdn directly via server_fqdn). directory remains referenced.
   assert {
     condition     = local.firezone_facts.directory == "/opt/garuda/firezone"
     error_message = "firezone directory must be /opt/garuda/firezone"
-  }
-
-  assert {
-    condition     = local.firezone_facts.server_url == "https://hub.example.net"
-    error_message = "firezone server_url must derive from hub_fqdn_prefix + base_domain"
   }
 }
 

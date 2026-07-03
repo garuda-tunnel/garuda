@@ -65,6 +65,11 @@ ospf_router_ids:
   firezone: 198.51.100.22
   ipt_server: 198.51.100.99
 
+# border_router OSPF router-id: a /32 outside backbone_subnet + border_subnet,
+# distinct from every ospf_router_ids.* and edge router-id.
+border_router:
+  router_id: 198.51.100.50
+
 operator_ssh_keys:
   - "operator:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexample operator@example"
 

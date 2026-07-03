@@ -1,15 +1,11 @@
-# When adding a new edge slug, also add it to this aggregate output —
-# the literal `[module.garuda_k8s_pt, module.garuda_k8s_de]` lists
-# below do not auto-expand from var.edges. Mirror the per-slug pattern
-# in main.tf (see "Kubernetes namespace and CNI bootstrap: edges").
-# Hub-side k3s modules use `values(module.wireguard_kube_hub)` to
-# auto-aggregate the for_each map.
+# Aggregated workload modules output (debug). Edge modules are for_each maps,
+# so they auto-expand via values()/[for ...] — no manual per-edge edit needed.
 output "workloads" {
   description = "Aggregated workload modules output for debugging."
   sensitive   = true
   value = concat(
-    [module.garuda_k8s_pt, module.garuda_k8s_de],
-    [module.wireguard_kube_pt, module.wireguard_kube_de],
+    values(module.garuda_k8s),
+    [for m in module.wireguard_kube_edge : m],
     [module.garuda_k8s_hub, module.wireguard_kube_hub_ros, module.cert_manager, module.k8s_gateway_bootstrap, module.border_router],
     values(module.wireguard_kube_hub),
     [

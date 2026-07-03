@@ -7,5 +7,5 @@ description: "Garuda namespace bootstrap: NADs (backbone, border), pod-reaper,
   garuda-cni first). k3s v1.36.1+ required for MAP
   (admissionregistration.k8s.io/v1 GA)."
 type: application
-version: 0.7.2
+version: 0.8.0
 appVersion: "0.1.0"
