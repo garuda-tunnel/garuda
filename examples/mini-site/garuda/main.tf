@@ -4,10 +4,9 @@ locals {
   }
 
   # Garuda chart version deployed via module.garuda_k8s_*.
-  # Used as the garuda_chart_version input to every garuda_guest module so that
-  # a garuda chart upgrade triggers a profile-rev hash change and rolls pods.
-  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/garuda
-  garuda_chart_version = "0.6.0"
+  # Derived from modules/garuda_k8s/charts/garuda/Chart.yaml (single source of truth)
+  # so the profile-rev hash always tracks the actually-deployed chart and cannot go stale.
+  garuda_chart_version = module.garuda_k8s_hub.chart_version
 }
 
 # --- WireGuard tunnel key-pairs (one tunnel object per edge) ---
@@ -374,9 +373,9 @@ module "garuda_guest_ipt_server_kube" {
 # --- ipt_server (hub, k8s) ---
 
 module "ipt_server_kube" {
-  source = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.2.5"
+  source = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.2.6"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/ipt-server
-  chart_version = "1.2.5"
+  chart_version = "1.2.6"
 
   providers = {
     helm       = helm.hub

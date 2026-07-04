@@ -22,3 +22,8 @@ output "map_propagation_id" {
   description = "Opaque id of the time_sleep.map_propagation resource. Stand-level workload modules add this to depends_on (Phase 5 wiring) to guarantee MAP/MAPBinding propagation before any workload pod is admitted. 10s sleep absorbs the ~3-5s observed propagation latency (spec §8.3)."
   value       = time_sleep.map_propagation.id
 }
+
+output "chart_version" {
+  description = "Version of the bundled garuda umbrella chart, read from its Chart.yaml. Consumed as the garuda_chart_version input to garuda_guest so the profile-rev rollout-trigger hash can never drift from the deployed chart."
+  value       = yamldecode(file("${path.module}/charts/garuda/Chart.yaml")).version
+}

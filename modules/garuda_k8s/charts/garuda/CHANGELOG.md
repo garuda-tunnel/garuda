@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.11.0](https://github.com/garuda-tunnel/garuda-internal/compare/v0.10.0...v0.11.0) (2026-07-04)
+
+
+### Features
+
+* **renovate:** annotate OCI chart_version + frr image pins for Renovate ([c6caa28](https://github.com/garuda-tunnel/garuda-internal/commit/c6caa2822461f642dc04857090de3d3b3b4d9a5e))
+* **renovate:** annotate OCI chart_version + frr image pins for Renovate ([2dd73fa](https://github.com/garuda-tunnel/garuda-internal/commit/2dd73fa3d12a71c7f92e8203926e1b56b4052f0f))
+
+## [0.10.0](https://github.com/garuda-tunnel/garuda-internal/compare/v0.9.0...v0.10.0) (2026-07-04)
+
+
+### Features
+
+* **garuda:** Phase 3 — MAP/VAP rollout + bootstrap ([#97](https://github.com/garuda-tunnel/garuda-internal/issues/97)) ([cdcc783](https://github.com/garuda-tunnel/garuda-internal/commit/cdcc783111e278dce47143738555defbf6b50f88))
+* **renovate:** annotate OCI chart_version + frr image pins for Renovate ([c6caa28](https://github.com/garuda-tunnel/garuda-internal/commit/c6caa2822461f642dc04857090de3d3b3b4d9a5e))
+* **renovate:** annotate OCI chart_version + frr image pins for Renovate ([2dd73fa](https://github.com/garuda-tunnel/garuda-internal/commit/2dd73fa3d12a71c7f92e8203926e1b56b4052f0f))
+
+
+### Bug Fixes
+
+* **garuda:** FRR prod-parity — transit route-map, passive interfaces, edge default-originate removal (0.7.2) ([#103](https://github.com/garuda-tunnel/garuda-internal/issues/103)) ([fc11d41](https://github.com/garuda-tunnel/garuda-internal/commit/fc11d412846b9e2ef6aa77c9b4f9e27f0ae5b5de))
+* **garuda:** full FRR capability set + frr-sidecar 0.3.2 pin (0.7.1) ([#102](https://github.com/garuda-tunnel/garuda-internal/issues/102)) ([6d3d891](https://github.com/garuda-tunnel/garuda-internal/commit/6d3d891a6e00af37ad23c21e2deee6ae928d0729))
+* **garuda:** MAP runtime fixes + frr-sidecar 0.3.1 pin (0.7.0) ([#101](https://github.com/garuda-tunnel/garuda-internal/issues/101)) ([5e2a4d4](https://github.com/garuda-tunnel/garuda-internal/commit/5e2a4d4235845fa1a68a6b297ec94dadb251a08e))
+
 ## [0.9.0](https://github.com/garuda-tunnel/garuda-internal/compare/v0.8.0...v0.9.0) (2026-07-04)
 
 
