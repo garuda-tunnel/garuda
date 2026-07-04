@@ -6,6 +6,7 @@ locals {
   # Garuda chart version deployed via module.garuda_k8s_*.
   # Used as the garuda_chart_version input to every garuda_guest module so that
   # a garuda chart upgrade triggers a profile-rev hash change and rolls pods.
+  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/garuda
   garuda_chart_version = "0.6.0"
 }
 
@@ -73,8 +74,9 @@ module "garuda_guest_wireguard_kube_edge" {
 # --- WireGuard Kubernetes workloads: edge side (one deployment per edge) ---
 
 module "wireguard_kube_edge" {
-  for_each      = var.edges
-  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  for_each = var.edges
+  source   = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
   chart_version = "2.0.0"
 
   providers = {
@@ -190,8 +192,9 @@ module "garuda_guest_wireguard_kube_hub" {
 # --- Hub-side WireGuard kube deployments (one per edge tunnel) ---
 
 module "wireguard_kube_hub" {
-  for_each      = var.edges
-  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  for_each = var.edges
+  source   = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
   chart_version = "2.0.0"
 
   providers = {
@@ -231,7 +234,8 @@ module "garuda_guest_wireguard_kube_hub_ros" {
 # --- Hub-side WireGuard kube deployment for RouterOS tunnel ---
 
 module "wireguard_kube_hub_ros" {
-  source        = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
   chart_version = "2.0.0"
 
   providers = {
@@ -313,7 +317,8 @@ module "garuda_guest_firezone_kube" {
 # --- Firezone (hub, k8s) ---
 
 module "firezone_kube" {
-  source        = "git::https://github.com/garuda-tunnel/firezone-internal.git//kube?ref=v1.2.0"
+  source = "git::https://github.com/garuda-tunnel/firezone-internal.git//kube?ref=v1.2.0"
+  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/firezone
   chart_version = "1.2.0"
 
   providers = {
@@ -369,7 +374,8 @@ module "garuda_guest_ipt_server_kube" {
 # --- ipt_server (hub, k8s) ---
 
 module "ipt_server_kube" {
-  source        = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.2.5"
+  source = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.2.5"
+  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/ipt-server
   chart_version = "1.2.5"
 
   providers = {
@@ -415,7 +421,8 @@ module "garuda_guest_border_router" {
 # border gateway, masquerade) so ipt_server can route RU/local traffic to it via
 # gw=<router_id> instead of the broken gateway-less dev=border nexthop.
 module "border_router" {
-  source        = "git::https://github.com/garuda-tunnel/border-router-internal.git?ref=v1.2.0"
+  source = "git::https://github.com/garuda-tunnel/border-router-internal.git?ref=v1.2.0"
+  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/border-router
   chart_version = "1.2.0"
 
   providers = {

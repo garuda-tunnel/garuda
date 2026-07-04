@@ -53,4 +53,5 @@ podReaper:
 # OSPF_PASSIVE_INTERFACES (D11). Pairs with chart 0.7.2 (transit route-map + passive env).
 # Override per-stand with --set frr_sidecar_image=<ref>.
 # Override per-pod with net.garuda-tunnel/sidecar-image annotation (Tier 1 escape hatch, spec §15).
+# renovate: datasource=docker depName=ghcr.io/garuda-tunnel/garuda-frr-sidecar
 frr_sidecar_image: "ghcr.io/garuda-tunnel/garuda-frr-sidecar:0.3.3"
