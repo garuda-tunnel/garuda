@@ -6,7 +6,6 @@ variables {
   namespace       = "garuda"
   backbone_subnet = "10.42.0.0/24"
   border_subnet   = "10.43.0.0/24"
-  kubeconfig_path = "/tmp/test-kubeconfig"
 }
 
 run "garuda_chart_path_resolves_to_bundled_chart" {

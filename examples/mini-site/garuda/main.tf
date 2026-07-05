@@ -50,7 +50,6 @@ module "garuda_k8s" {
   namespace       = "garuda"
   backbone_subnet = var.backbone_subnet
   border_subnet   = var.border_subnet
-  kubeconfig_path = local.edges_kubeconfig_path[each.key]
 }
 
 # --- garuda_guest intent for edge WireGuard workloads ---
@@ -170,7 +169,6 @@ module "garuda_k8s_hub" {
   namespace       = "garuda"
   backbone_subnet = var.backbone_subnet
   border_subnet   = var.border_subnet
-  kubeconfig_path = local.hub_kubeconfig_path
 }
 
 # --- garuda_guest intent for hub-side edge WireGuard workloads (per edge) ---
