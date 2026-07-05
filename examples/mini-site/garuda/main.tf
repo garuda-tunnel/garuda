@@ -373,9 +373,9 @@ module "garuda_guest_ipt_server_kube" {
 # --- ipt_server (hub, k8s) ---
 
 module "ipt_server_kube" {
-  source = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.2.6"
+  source = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.2.8"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/ipt-server
-  chart_version = "1.2.6"
+  chart_version = "1.2.8"
 
   providers = {
     helm       = helm.hub
