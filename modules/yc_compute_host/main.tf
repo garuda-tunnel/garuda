@@ -119,5 +119,21 @@ resource "yandex_compute_instance" "this" {
   # update; the agent rewrites per-user authorized_keys within seconds.
   # No reboot required. allow_stopping_for_update must be true for YC to
   # apply metadata changes on a running instance (see variables.tf).
+
+  lifecycle {
+    # Ignore boot-image drift. `data.yandex_compute_image` resolves the
+    # *current* newest image in var.image_family at every plan; without
+    # this, a routine upstream image publication in the family (e.g.
+    # ubuntu-2404-lts-oslogin) would flip
+    # `boot_disk.initialize_params.image_id` and force a full instance
+    # replacement — destroying the boot disk of stateful hosts (hubs,
+    # long-lived edges) with no operator intent. Everything else on the
+    # boot_disk block (size, type) still applies in-place normally.
+    #
+    # Trade-off: a deliberate OS-image refresh now requires an explicit
+    # `terragrunt apply -replace=…` (or `tofu taint`). This is the
+    # accepted contract — image rollouts are opt-in, not incidental.
+    ignore_changes = [boot_disk[0].initialize_params[0].image_id]
+  }
 }
 

@@ -86,5 +86,21 @@ resource "google_compute_instance" "this" {
   # per-user authorized_keys within seconds. No reboot required.
   # allow_stopping_for_update must be true for GCP to apply some changes
   # on a running instance (see variables.tf).
+
+  lifecycle {
+    # Ignore boot-image drift. Callers typically pass an image *family*
+    # URL (e.g. projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts)
+    # into var.image; GCE resolves that to the newest concrete image at
+    # every plan. Without this, an upstream image publication in the
+    # family would flip `boot_disk.initialize_params.image` and force a
+    # full instance replacement — destroying the boot disk of stateful
+    # hosts with no operator intent. Everything else on the boot_disk
+    # block (size, type) still applies in-place normally.
+    #
+    # Trade-off: a deliberate OS-image refresh now requires an explicit
+    # `terragrunt apply -replace=…` (or `tofu taint`). This is the
+    # accepted contract — image rollouts are opt-in, not incidental.
+    ignore_changes = [boot_disk[0].initialize_params[0].image]
+  }
 }
 
