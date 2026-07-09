@@ -95,8 +95,9 @@ variables {
   }
 
   ospf_router_ids = {
-    firezone   = "198.51.100.22"
-    ipt_server = "198.51.100.99"
+    firezone       = "198.51.100.22"
+    ipt_server     = "198.51.100.99"
+    remnawave_node = "10.130.30.45"
   }
 
   border_router = {

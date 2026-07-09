@@ -286,10 +286,73 @@ module "k8s_gateway_bootstrap" {
   # identity in lockstep with the listener identity. The smoke phase
   # uses the same convention to look up the issued cert.
   hostnames = [for entry in [
-    { name = "hub", hostname = local.firezone_fqdn }
+    { name = "hub", hostname = local.firezone_fqdn },
+    { name = "panel", hostname = local.remnawave_panel_fqdn },
+    { name = "sub", hostname = local.remnawave_sub_fqdn },
   ] : merge(entry, { cert_secret_name = "${entry.name}-tls" })]
 
   depends_on = [module.cert_manager]
+}
+
+# --- garuda_guest intent for Remnawave node workload ---
+# The frr sidecar uses var.ospf_router_ids.remnawave_node as its OSPF router-id.
+# The node chart separately owns dummy0=172.30.0.45/32 via node_routing below;
+# dummy0 is passive so the /32 is advertised without forming adjacencies.
+
+module "garuda_guest_remnawave_node" {
+  source = "./modules/garuda_guest"
+
+  profile              = "ospf-router"
+  garuda_chart_version = local.garuda_chart_version
+  networks             = ["backbone"]
+  ospf_router_id       = var.ospf_router_ids.remnawave_node
+  interfaces           = "backbone"
+  passive_interfaces   = "dummy0"
+  default_originate    = "false"
+}
+
+# --- Remnawave panel + node (hub, k8s) ---
+
+module "remnawave_panel" {
+  source = "git::https://github.com/garuda-tunnel/remnawave-internal.git//kube?ref=v0.1.0"
+  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/remnawave-panel
+  chart_version = "0.1.0"
+
+  providers = {
+    helm       = helm.hub
+    kubernetes = kubernetes.hub
+  }
+
+  namespace     = module.garuda_k8s_hub.namespace
+  name          = "remnawave-panel"
+  remnawave_dir = "/opt/garuda/remnawave"
+  panel_fqdn    = local.remnawave_panel_fqdn
+  sub_fqdn      = local.remnawave_sub_fqdn
+  gateway_ref = {
+    name      = module.k8s_gateway_bootstrap.gateway_name
+    namespace = module.k8s_gateway_bootstrap.gateway_namespace
+  }
+
+  node_enabled = true
+  node_name    = local.remnawave_node_name
+  node_registration = {
+    panel_base_url        = "https://remnawave-panel.${module.garuda_k8s_hub.namespace}.svc.cluster.local:3000"
+    api_token_secret_name = local.remnawave_node_panel_api_token_secret_name
+    api_token_secret_key  = "token"
+    config_profile_uuid   = "default-profile-uuid"
+    active_inbounds       = ["hysteria-udp-${local.remnawave_node_hysteria_udp_port}"]
+  }
+  node_routing = {
+    ospf_router_id        = "172.30.0.45"
+    ipt_server_address    = "172.30.0.32"
+    cluster_cidrs         = ["10.42.0.0/16"]
+    service_cidrs         = ["10.43.0.0/16"]
+    static_default_metric = 200
+  }
+  node_pod_annotations = module.garuda_guest_remnawave_node.annotations
+  node_pod_labels      = module.garuda_guest_remnawave_node.labels
+
+  depends_on = [module.garuda_k8s_hub, module.cert_manager, module.k8s_gateway_bootstrap]
 }
 
 # --- garuda_guest intent for Firezone workload ---

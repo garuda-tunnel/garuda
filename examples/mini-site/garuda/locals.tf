@@ -7,7 +7,13 @@ locals {
   )
 
   # --- Firezone FQDN derived from hub_fqdn_prefix + base_domain. ---
-  firezone_fqdn = "${var.hub_fqdn_prefix}.${var.base_domain}"
+  firezone_fqdn        = "${var.hub_fqdn_prefix}.${var.base_domain}"
+  remnawave_panel_fqdn = "panel.${var.base_domain}"
+  remnawave_sub_fqdn   = "sub.${var.base_domain}"
+
+  remnawave_node_name                        = "remnawave-node"
+  remnawave_node_hysteria_udp_port           = 32445
+  remnawave_node_panel_api_token_secret_name = "remnawave-panel-api-token"
 
   # --- Tunnel facts: one subnet_cidr per edge (fed to wireguard_tunnel.subnet). ---
   tunnel_facts = {

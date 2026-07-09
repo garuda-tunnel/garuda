@@ -64,6 +64,9 @@ z2g_routeros_ssh_strict: false
 # z2g_firezone_fqdn: FQDN the HTTPRoute is bound to and the cert SAN.
 # Override per-stand with -e z2g_firezone_fqdn=hub.example.net
 z2g_firezone_fqdn: "hub.example.net"
+z2g_remnawave_panel_fqdn: "panel.example.net"
+z2g_remnawave_sub_fqdn: "sub.example.net"
+z2g_remnawave_keygen_url: "https://{{ z2g_remnawave_panel_fqdn }}/api/keygen"
 
 # cert-manager Secret name where the leaf cert for the Gateway listener
 # is stored. Stand-overridable via -e z2g_cert_secret_name=<real-secret>.

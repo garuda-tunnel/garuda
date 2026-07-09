@@ -86,3 +86,18 @@ output "ipt_server_label_router_id" {
   description = "Router id for the ipt_server workload (now from garuda_guest intent)."
   value       = var.ospf_router_ids.ipt_server
 }
+
+output "remnawave_node_control_service_dns" {
+  description = "Cluster DNS name registered for Remnawave node control."
+  value       = module.remnawave_panel.node_control_service_dns
+}
+
+output "remnawave_node_hysteria_udp_port" {
+  description = "Reserved Hysteria UDP hostPort for Remnawave node ingress."
+  value       = module.remnawave_panel.node_hysteria_udp_port
+}
+
+output "remnawave_node_ospf_router_id" {
+  description = "Stable advertised /32 for Remnawave node pinning."
+  value       = module.remnawave_panel.node_ospf_router_id
+}

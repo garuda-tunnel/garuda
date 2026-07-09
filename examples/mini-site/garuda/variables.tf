@@ -119,8 +119,9 @@ variable "hub_ros" {
 # --- OSPF router ids for non-tunnel workloads ---
 variable "ospf_router_ids" {
   type = object({
-    firezone   = string
-    ipt_server = string
+    firezone       = string
+    ipt_server     = string
+    remnawave_node = string
   })
 }
 

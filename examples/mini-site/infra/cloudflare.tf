@@ -26,3 +26,25 @@ resource "cloudflare_record" "edges" {
   proxied = false
   comment = "garuda: mini-site edge/${each.key}"
 }
+
+# panel.<base_domain> → yc_hub public IPv4. Remnawave panel HTTPS endpoint.
+resource "cloudflare_record" "panel" {
+  zone_id = data.cloudflare_zone.main.id
+  name    = "panel.${var.base_domain}"
+  type    = "A"
+  content = module.yc_hub.public_ipv4
+  ttl     = 300
+  proxied = false
+  comment = "garuda: mini-site Remnawave panel"
+}
+
+# sub.<base_domain> → yc_hub public IPv4. Remnawave subscription endpoint.
+resource "cloudflare_record" "sub" {
+  zone_id = data.cloudflare_zone.main.id
+  name    = "sub.${var.base_domain}"
+  type    = "A"
+  content = module.yc_hub.public_ipv4
+  ttl     = 300
+  proxied = false
+  comment = "garuda: mini-site Remnawave subscription"
+}
