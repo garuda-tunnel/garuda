@@ -316,7 +316,7 @@ module "garuda_guest_remnawave_node" {
 # --- Remnawave panel + node (hub, k8s; panel is not a fabric guest, node is) ---
 
 module "remnawave_panel" {
-  source = "git::https://github.com/garuda-tunnel/remnawave-internal.git//kube?ref=v0.1.11"
+  source = "git::https://github.com/garuda-tunnel/remnawave-internal.git//kube?ref=remnawave-node-v0.1.5"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/remnawave-panel
   chart_version = "0.1.11"
 
@@ -337,7 +337,7 @@ module "remnawave_panel" {
 
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/remnawave-node
   node_enabled       = true
-  node_chart_version = "0.1.4"
+  node_chart_version = "0.1.5"
   node_registration = {
     # Public FQDN: the registration Deployment dials the panel through the
     # in-cluster gateway (Traefik) via --connect-to, preserving this host as
