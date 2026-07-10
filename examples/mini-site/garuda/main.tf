@@ -316,7 +316,7 @@ module "garuda_guest_remnawave_node" {
 # --- Remnawave panel + node (hub, k8s; panel is not a fabric guest, node is) ---
 
 module "remnawave_panel" {
-  source = "git::https://github.com/garuda-tunnel/remnawave-internal.git//kube?ref=v0.1.10"
+  source = "git::https://github.com/garuda-tunnel/remnawave-internal.git//kube?ref=remnawave-node-v0.1.4"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/remnawave-panel
   chart_version = "0.1.10"
 
@@ -337,13 +337,19 @@ module "remnawave_panel" {
 
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/remnawave-node
   node_enabled       = true
-  node_chart_version = "0.1.3"
+  node_chart_version = "0.1.4"
   node_registration = {
     # Public FQDN: the registration Deployment dials the panel through the
     # in-cluster gateway (Traefik) via --connect-to, preserving this host as
     # SNI/Host so ProxyCheckMiddleware is satisfied. Profile/inbound are
-    # auto-ensured (garuda-hysteria / garuda-hysteria-udp) by the registrar.
+    # auto-ensured (garuda-hysteria / garuda-hysteria-udp / garuda-vless-reality)
+    # by the registrar.
     panel_base_url = "https://${local.remnawave_panel_fqdn}"
+    # Subscription Hosts advertise the hub's public FQDN. Clients resolve this
+    # to the hub public IPv4 (Cloudflare DNS A record set from
+    # module.yc_hub.public_ipv4) and dial the node's public hostPorts:
+    # 32445/UDP (Hysteria2) + 32443/TCP (VLESS-Reality).
+    public_address = local.hub_fqdn
   }
   node_routing = {
     ospf_router_id = var.ospf_router_ids.remnawave_node
@@ -354,6 +360,11 @@ module "remnawave_panel" {
     cluster_cidrs      = ["10.42.0.0/16"]
     service_cidrs      = ["10.43.0.0/16"]
   }
+  # VLESS-Reality inbound: keeps module defaults (TCP/32443, cloudflare.com
+  # front, Chrome fingerprint). The module's dest is a Cloudflare anycast IP
+  # whose ServerHello+Certificate chain fits under REALITY's hardcoded 8192-byte
+  # s2c buffer (a microsoft.com dest overflows it and the handshake aborts —
+  # validated live 2026-07-10, see remnawave-internal PR #7 for the artifact).
   node_pod_annotations = module.garuda_guest_remnawave_node.annotations
   node_pod_labels      = module.garuda_guest_remnawave_node.labels
 

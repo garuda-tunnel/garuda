@@ -6,8 +6,11 @@ locals {
     { for k, _ in var.edges : k => "${k}-${var.env_slug}" }
   )
 
-  # --- Firezone FQDN derived from hub_fqdn_prefix + base_domain. ---
-  firezone_fqdn        = "${var.hub_fqdn_prefix}.${var.base_domain}"
+  # --- Hub FQDN derived from hub_fqdn_prefix + base_domain. ---
+  # Shared by Firezone (server_url) and Remnawave subscription Hosts
+  # (public address clients dial for the VPN inbounds).
+  hub_fqdn             = "${var.hub_fqdn_prefix}.${var.base_domain}"
+  firezone_fqdn        = local.hub_fqdn
   remnawave_panel_fqdn = "panel.${var.base_domain}"
   remnawave_sub_fqdn   = "sub.${var.base_domain}"
 
