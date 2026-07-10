@@ -295,9 +295,9 @@ module "k8s_gateway_bootstrap" {
 }
 
 # --- garuda_guest intent for Remnawave node workload ---
-# The frr sidecar uses var.ospf_router_ids.remnawave_node as its OSPF router-id.
-# The node chart separately owns dummy0=172.30.0.45/32 via node_routing below;
-# dummy0 is passive so the /32 is advertised without forming adjacencies.
+# Remnawave node: ospf-router profile; advertises its dummy0 /32 (backbone) via
+# passive OSPF so de/pt edges have a return path. Ingress-only (egress owned by
+# ipt-server via default route); not a PBR transit consumer (transit_interfaces="").
 
 module "garuda_guest_remnawave_node" {
   source = "./modules/garuda_guest"
@@ -308,15 +308,17 @@ module "garuda_guest_remnawave_node" {
   ospf_router_id       = var.ospf_router_ids.remnawave_node
   interfaces           = "backbone"
   passive_interfaces   = "dummy0"
+  redistribute         = "connected"
   default_originate    = "false"
+  transit_interfaces   = ""
 }
 
-# --- Remnawave panel + node (hub, k8s) ---
+# --- Remnawave panel + node (hub, k8s; panel is not a fabric guest, node is) ---
 
 module "remnawave_panel" {
-  source = "git::https://github.com/garuda-tunnel/remnawave-internal.git//kube?ref=v0.1.0"
+  source = "git::https://github.com/garuda-tunnel/remnawave-internal.git//kube?ref=v0.1.10"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/remnawave-panel
-  chart_version = "0.1.0"
+  chart_version = "0.1.10"
 
   providers = {
     helm       = helm.hub
@@ -333,21 +335,24 @@ module "remnawave_panel" {
     namespace = module.k8s_gateway_bootstrap.gateway_namespace
   }
 
-  node_enabled = true
-  node_name    = local.remnawave_node_name
+  # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/remnawave-node
+  node_enabled       = true
+  node_chart_version = "0.1.3"
   node_registration = {
-    panel_base_url        = "https://remnawave-panel.${module.garuda_k8s_hub.namespace}.svc.cluster.local:3000"
-    api_token_secret_name = local.remnawave_node_panel_api_token_secret_name
-    api_token_secret_key  = "token"
-    config_profile_uuid   = "default-profile-uuid"
-    active_inbounds       = ["hysteria-udp-${local.remnawave_node_hysteria_udp_port}"]
+    # Public FQDN: the registration Deployment dials the panel through the
+    # in-cluster gateway (Traefik) via --connect-to, preserving this host as
+    # SNI/Host so ProxyCheckMiddleware is satisfied. Profile/inbound are
+    # auto-ensured (garuda-hysteria / garuda-hysteria-udp) by the registrar.
+    panel_base_url = "https://${local.remnawave_panel_fqdn}"
   }
   node_routing = {
-    ospf_router_id        = "172.30.0.45"
-    ipt_server_address    = "172.30.0.32"
-    cluster_cidrs         = ["10.42.0.0/16"]
-    service_cidrs         = ["10.43.0.0/16"]
-    static_default_metric = 200
+    ospf_router_id = var.ospf_router_ids.remnawave_node
+    # ipt-server backbone next-hop (verified §9.2 egress spike). NOTE: this is the
+    # backbone IP, NOT ospf_router_ids.ipt_server (that is an OSPF router-id, not
+    # a reachable next-hop) — corrected from the plan's example.
+    ipt_server_address = "172.30.0.32"
+    cluster_cidrs      = ["10.42.0.0/16"]
+    service_cidrs      = ["10.43.0.0/16"]
   }
   node_pod_annotations = module.garuda_guest_remnawave_node.annotations
   node_pod_labels      = module.garuda_guest_remnawave_node.labels
