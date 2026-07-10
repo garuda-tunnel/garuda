@@ -228,6 +228,38 @@ variable "ingress_ports" {
   default = []
 }
 
+variable "ingress_port_ranges" {
+  description = <<EOT
+Additional port-range ingress rules merged into the module-managed SG.
+
+Yandex Cloud SG resource has no deny rules; carving exclusions (e.g.
+"open all TCP except the k8s control plane") is expressed as a set of
+allow ranges that skip the excluded ports. Each rule maps to one YC
+ingress block with from_port/to_port.
+
+`from_port <= to_port`. Both bounds are inclusive.
+EOT
+  type = list(object({
+    protocol     = string
+    from_port    = number
+    to_port      = number
+    description  = string
+    source_cidrs = optional(list(string), ["0.0.0.0/0"])
+  }))
+  default  = []
+  nullable = false
+
+  validation {
+    condition     = alltrue([for r in var.ingress_port_ranges : contains(["TCP", "UDP"], r.protocol)])
+    error_message = "ingress_port_ranges[*].protocol must be \"TCP\" or \"UDP\" (ICMP has no port range)."
+  }
+
+  validation {
+    condition     = alltrue([for r in var.ingress_port_ranges : r.from_port >= 0 && r.to_port <= 65535 && r.from_port <= r.to_port])
+    error_message = "ingress_port_ranges[*] bounds must satisfy 0 <= from_port <= to_port <= 65535."
+  }
+}
+
 variable "attached_disks" {
   description = <<EOT
 Disks that already exist (owned by the caller) to attach to this instance,

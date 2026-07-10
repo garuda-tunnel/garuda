@@ -73,6 +73,11 @@ module "yc_hub" {
   # WireGuard tunnels and Firezone UDP 51620.
   default_ingress = true
 
+  # Optional caller-supplied TCP/UDP port-range rules (e.g. to open the
+  # rest of the TCP spectrum while carving out the k8s control plane).
+  # Empty by default — mini-site stays TCP 22/80/443 only.
+  ingress_port_ranges = var.hub_ingress_port_ranges
+
   labels = {
     garuda_role    = "hub"
     garuda_managed = "terraform"

@@ -56,7 +56,7 @@ locals {
   needs_cloud_init = length(var.attached_disks) > 0 || length(var.user_data_parts) > 0
 
   # Firewall / SG
-  sg_enabled = var.default_ingress || length(var.ingress_ports) > 0
+  sg_enabled = var.default_ingress || length(var.ingress_ports) > 0 || length(var.ingress_port_ranges) > 0
 
   default_ingress_rules = var.default_ingress ? [
     { protocol = "TCP", port = 22, description = "ssh", source_cidrs = ["0.0.0.0/0"] },

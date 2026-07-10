@@ -79,6 +79,25 @@ variable "hub" {
   })
 }
 
+# --- Hub cloud SG: extra port-range ingress rules ---
+# Yandex Cloud SGs are allow-only (no deny rules). Stands that want to
+# express "open all TCP except ports X,Y,Z" pass a list of allow ranges
+# that skip the excluded ports. Forwarded verbatim to
+# module.yc_hub.ingress_port_ranges. Empty by default — the stock
+# mini-site stays TCP 22/80/443 + UDP-all + ICMP only.
+variable "hub_ingress_port_ranges" {
+  description = "Extra port-range ingress rules for the hub cloud SG. Each entry is one YC ingress block with from_port/to_port."
+  type = list(object({
+    protocol     = string
+    from_port    = number
+    to_port      = number
+    description  = string
+    source_cidrs = optional(list(string), ["0.0.0.0/0"])
+  }))
+  default  = []
+  nullable = false
+}
+
 # --- Edges map (GCP-managed, keyed by slug: pt, de, …) ---
 variable "edges" {
   description = "Map of GCP edge hosts. Each entry provides compute sizing and WireGuard tunnel parameters."

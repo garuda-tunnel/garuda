@@ -62,6 +62,19 @@ resource "yandex_vpc_security_group" "this" {
     }
   }
 
+  # Caller-supplied port-range ingress rules. YC SG has no deny rules; use
+  # allow ranges to express "open everything except ports X,Y,Z".
+  dynamic "ingress" {
+    for_each = var.ingress_port_ranges
+    content {
+      description    = ingress.value.description
+      protocol       = ingress.value.protocol
+      from_port      = ingress.value.from_port
+      to_port        = ingress.value.to_port
+      v4_cidr_blocks = ingress.value.source_cidrs
+    }
+  }
+
   egress {
     description    = "all-outbound"
     protocol       = "ANY"
