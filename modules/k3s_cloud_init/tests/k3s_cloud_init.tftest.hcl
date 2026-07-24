@@ -151,3 +151,43 @@ run "cloud_init_sets_ip_forward_via_sysctl_drop_in" {
     error_message = "99-garuda-ip-forward.conf must contain net.ipv4.ip_forward = 1."
   }
 }
+
+run "cloud_init_provisions_guarded_swapfile" {
+  command = plan
+  assert {
+    condition     = strcontains(output.user_data_parts[0], "99-garuda-swap.conf")
+    error_message = "cloud-init must write the 99-garuda-swap.conf sysctl drop-in."
+  }
+  assert {
+    condition     = strcontains(output.user_data_parts[0], "vm.swappiness = 30")
+    error_message = "99-garuda-swap.conf must set vm.swappiness = 30."
+  }
+  assert {
+    condition     = strcontains(output.user_data_parts[0], "fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048")
+    error_message = "runcmd must create /swapfile, falling back to dd when fallocate is unsupported."
+  }
+  assert {
+    condition     = strcontains(output.user_data_parts[0], "mkswap /swapfile")
+    error_message = "runcmd must format /swapfile as swap."
+  }
+  assert {
+    condition     = strcontains(output.user_data_parts[0], "swapon /swapfile")
+    error_message = "runcmd must activate /swapfile."
+  }
+  assert {
+    condition     = strcontains(output.user_data_parts[0], "grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab")
+    error_message = "runcmd must persist /swapfile in /etc/fstab exactly once (idempotent append)."
+  }
+}
+
+run "cni_reload_start_is_nonblocking_and_checked" {
+  command = plan
+  assert {
+    condition     = strcontains(output.user_data_parts[0], "systemctl start --no-block garuda-k3s-cni-reload.service")
+    error_message = "cni-reload unit must be started with 'systemctl start --no-block' so runcmd does not stall waiting for the (up to 10 min) reload, while still surfacing systemctl start failures instead of the fire-and-forget shell '&' form that silently swallows them."
+  }
+  assert {
+    condition     = !strcontains(output.user_data_parts[0], "garuda-k3s-cni-reload.service &")
+    error_message = "The fire-and-forget shell backgrounding form ('... .service &') must not reappear; it swallows systemctl start errors."
+  }
+}

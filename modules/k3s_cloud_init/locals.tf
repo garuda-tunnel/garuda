@@ -64,6 +64,19 @@ write_files:
       # routing. Replaces the former linux_host_prerequisites role (removed in the k3s migration).
       net.ipv4.ip_forward = 1
 
+  - path: /etc/sysctl.d/99-garuda-swap.conf
+    permissions: "0644"
+    owner: root:root
+    content: |
+      # Swap is an emergency memory cushion for these small k3s VMs
+      # (see migration: hub/edges are memory-constrained). swappiness=30
+      # lets the kernel push out genuinely idle pages to avoid OOM-killing
+      # the apiserver under transient pressure, without aggressively
+      # swapping the hot working set (which would add latency). The
+      # underlying disks are ephemeral by design — a wiped swapfile is
+      # acceptable and re-created on next boot.
+      vm.swappiness = 30
+
   - path: /usr/local/sbin/garuda-k3s-cni-reload.sh
     permissions: "0755"
     owner: root:root
@@ -119,9 +132,14 @@ write_files:
 runcmd:
   - modprobe br_netfilter || true
   - sysctl --system
+  - fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+  - chmod 600 /swapfile
+  - mkswap /swapfile
+  - swapon /swapfile
+  - grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
   - curl -sfL ${var.install_url} | ${local._env_prefix} sh -
   - systemctl daemon-reload
   - systemctl enable garuda-k3s-cni-reload.service
-  - systemctl start garuda-k3s-cni-reload.service &
+  - systemctl start --no-block garuda-k3s-cni-reload.service
 EOT
 }
