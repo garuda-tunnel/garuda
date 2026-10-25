@@ -57,6 +57,7 @@
         },
         "maxUnready": { "type": "string", "pattern": "^[0-9]+[smh]$" },
         "evict": { "type": "string", "enum": ["true", "false"] },
+        "containerStatuses": { "type": "string", "pattern": "^[A-Za-z]+(,[A-Za-z]+)*$" },
         "gracePeriod": { "type": "string" },
         "schedule": { "type": "string" },
         "requireLabelKey": { "type": "string" },

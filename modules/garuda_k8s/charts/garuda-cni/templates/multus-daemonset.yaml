@@ -194,13 +194,17 @@ spec:
         - name: kube-multus
           image: {{ .Values.versions.multus_image | quote }}
           command: [ "/usr/src/multus-cni/bin/multus-daemon" ]
+          # Not the upstream 100m/50Mi: after a node reboot that limit thrashes
+          # the page cache and the daemon misses its API deadlines (issue #179).
+          # Measured on a hub: 67-68Mi (~11Mi anon) steady, 75Mi peak, so the
+          # 256Mi limit is ~3.4x peak. No CPU limit: a CFS quota throttles the
+          # burst of sandbox setups.
           resources:
             requests:
               cpu: "100m"
-              memory: "50Mi"
+              memory: "96Mi"
             limits:
-              cpu: "100m"
-              memory: "50Mi"
+              memory: "256Mi"
           securityContext:
             privileged: true
           volumeMounts:

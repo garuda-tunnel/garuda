@@ -42,6 +42,26 @@ module "garuda_k8s_pt" {
 }
 ```
 
+## Multus sizing and pod-reaper scope
+
+- The Multus daemon (`kube-multus`) runs with a 256Mi memory limit and no CPU
+  limit (request `100m` / `96Mi`). Upstream's `100m` / `50Mi` is too small for
+  a node with several Multus-attached pods: after a reboot the daemon thrashes
+  its page cache, is CPU-throttled, misses its API deadlines, and no pod gets a
+  sandbox (issue #179). Measured on a hub: steady 67–68Mi (about 11Mi anon),
+  peak 75Mi, so 256Mi is ≈3.4× peak.
+- The pod reaper only reaps pods that are unready longer than
+  `podReaper.maxUnready` **and** have a container (init containers included) in
+  one of `podReaper.containerStatuses` (`CrashLoopBackOff`, `Error`,
+  `StartError`, `CreateContainerError`). Pods still in `ContainerCreating` /
+  `PodInitializing` (no sandbox yet) are not reaped: replacing them only adds
+  CNI load. Pods that start without their Multus interfaces and crash-loop are
+  still replaced (ADR 0002). A pod that is `Running` but never Ready is no
+  longer reaped.
+- The reaper is scoped to pods labelled `app.kubernetes.io/part-of=garuda`. The
+  `garuda-multus-ready` Helm hook pod deliberately does not carry that label;
+  keep any new hook pod unlabelled the same way.
+
 ## What this module does NOT do
 
 - No workload pods. See `modules/wireguard/kube` for the WireGuard endpoint.

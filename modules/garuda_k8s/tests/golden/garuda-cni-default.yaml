@@ -8,6 +8,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: Helm
     garuda.managed-by: helm
+
 ---
 # Source: garuda-cni/templates/multus-daemonset.yaml
 kind: ConfigMap
@@ -33,6 +34,7 @@ data:
         "multusConfigFile": "auto",
         "multusAutoconfigDir": "/host/etc/cni/net.d"
     }
+
 ---
 # Source: garuda-cni/templates/multus-daemonset.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -82,6 +84,7 @@ spec:
                 config:
                   description: 'NetworkAttachmentDefinition config is a JSON-formatted CNI configuration'
                   type: string
+
 ---
 # Source: garuda-cni/templates/multus-daemonset.yaml
 kind: ClusterRole
@@ -124,6 +127,7 @@ rules:
       - create
       - patch
       - update
+
 ---
 # Source: garuda-cni/templates/multus-daemonset.yaml
 kind: ClusterRoleBinding
@@ -141,6 +145,7 @@ subjects:
   - kind: ServiceAccount
     name: multus
     namespace: kube-system
+
 ---
 # Source: garuda-cni/templates/multus-daemonset.yaml
 apiVersion: apps/v1
@@ -179,13 +184,17 @@ spec:
         - name: kube-multus
           image: "rancher/hardened-multus-thick:v4.2.4-build20260310"
           command: [ "/usr/src/multus-cni/bin/multus-daemon" ]
+          # Not the upstream 100m/50Mi: after a node reboot that limit thrashes
+          # the page cache and the daemon misses its API deadlines (issue #179).
+          # Measured on a hub: 67-68Mi (~11Mi anon) steady, 75Mi peak, so the
+          # 256Mi limit is ~3.4x peak. No CPU limit: a CFS quota throttles the
+          # burst of sandbox setups.
           resources:
             requests:
               cpu: "100m"
-              memory: "50Mi"
+              memory: "96Mi"
             limits:
-              cpu: "100m"
-              memory: "50Mi"
+              memory: "256Mi"
           securityContext:
             privileged: true
           volumeMounts:

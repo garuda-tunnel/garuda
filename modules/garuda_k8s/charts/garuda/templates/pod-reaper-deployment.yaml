@@ -29,6 +29,10 @@ spec:
               value: {{ .Release.Namespace | quote }}
             - name: MAX_UNREADY
               value: {{ .Values.podReaper.maxUnready | quote }}
+            # Rules are ANDed: a pod is reaped only if it is unready AND a
+            # container has one of these statuses (init containers included).
+            - name: CONTAINER_STATUSES
+              value: {{ .Values.podReaper.containerStatuses | quote }}
             - name: EVICT
               value: {{ .Values.podReaper.evict | quote }}
             - name: GRACE_PERIOD

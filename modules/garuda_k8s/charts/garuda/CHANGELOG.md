@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/garuda-tunnel/garuda-internal/compare/v0.11.0...v0.11.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* **garuda_k8s:** size the Multus daemon and stop the pod reaper amplifying sandbox stalls ([#180](https://github.com/garuda-tunnel/garuda-internal/issues/180)) ([36edc80](https://github.com/garuda-tunnel/garuda-internal/commit/36edc80b1b7d1ad39ac5fe9d60002ac8159ea120)), closes [#179](https://github.com/garuda-tunnel/garuda-internal/issues/179)
+
 ## [0.11.0](https://github.com/garuda-tunnel/garuda-internal/compare/v0.10.0...v0.11.0) (2026-07-04)
 
 

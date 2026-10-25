@@ -9,7 +9,9 @@ Re-vendoring procedure: download new upstream YAML, replace the file in this
 directory (`templates/multus-daemonset.yaml`),
 re-wrap each document in `{{- if .Values.installCni }}` … `{{- end }}`,
 bump the tag table above, preserve the k3s-native CNI paths documented in
-`https://docs.k3s.io/networking/multus-ipams`, run `helm lint`, regenerate
+`https://docs.k3s.io/networking/multus-ipams` and the `kube-multus` resources
+(memory limit 256Mi, no CPU limit; upstream's 100m/50Mi starves the daemon after
+a reboot, issue #179), run `helm lint`, regenerate
 the golden files in `modules/garuda_k8s/tests/golden/`.
 
 This chart is installed BEFORE the main `garuda` chart by

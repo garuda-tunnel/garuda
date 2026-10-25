@@ -40,10 +40,10 @@ EOT
 
 variable "pod_reaper_max_unready" {
   description = <<EOT
-Override of the garuda chart's podReaper.maxUnready, for example "600s". A pod
-counts as unready while its images are still being pulled, so a slow first pull
-can make the reaper replace pods that were making progress. Null keeps the chart
-default (120s).
+Override of the garuda chart's podReaper.maxUnready, for example "600s": how
+long a crash-looping unready pod is tolerated before the reaper evicts it. Pods
+without a sandbox or still pulling images are never reaped (issue #179). Null
+keeps the chart default (120s).
 EOT
   type        = string
   default     = null

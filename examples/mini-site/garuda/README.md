@@ -32,7 +32,7 @@ Defaults reproduce the cloud plan. A local stand can turn pieces off:
 | `cert_manager_solver`, `cert_manager_rfc2136`, `cert_manager_acme_ca_bundle`, `cert_manager_extra_args` | `http01`, `null`, `null`, `[]` | RFC 2136 DNS-01 solver, ACME CA bundle and controller args (see `modules/cert_manager`). |
 | `host_lans` | `{}` | RFC 1918 LANs behind a node host, keyed by `hub` or an edge key: the border-owner pod gets a static route, redistributes it into OSPF and holds `host_lan_alias`; the node gets a return route for `firezone_client_subnet` (see `examples/local-stand`). |
 | `host_lan_alias` | `"169.254.1.1"` | Next hop of the node's return route, deliberately outside `border_subnet`. Avoid on Calico clusters, where this address is the pod gateway. |
-| `pod_reaper_max_unready` | `null` | `podReaper.maxUnready` override on every cluster, for example `"600s"` for a stand with slow first image pulls. |
+| `pod_reaper_max_unready` | `null` | `podReaper.maxUnready` override on every cluster: how long a crash-looping unready pod is tolerated before eviction, for example `"600s"`. |
 | `ipt_powerdns_extra_config` | `""` | Raw PowerDNS Recursor YAML drop-in for the ipt-server workload Recursor (`forward_zones_recurse`, `dnssec.negative_trustanchors`); empty adds nothing. |
 
 The gated resources use `count`; `moved` blocks in `main.tf` keep their state

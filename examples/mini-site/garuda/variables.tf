@@ -336,7 +336,7 @@ variable "routeros_lan_gateway" {
 
 # --- pod-reaper (hub and edges) ---
 variable "pod_reaper_max_unready" {
-  description = "Override of the garuda chart's podReaper.maxUnready on every cluster, for example \"600s\". Image pulls count as unready time: a stand with a slow first pull needs more than the chart default (120s). Null keeps the chart default."
+  description = "Override of the garuda chart's podReaper.maxUnready on every cluster, for example \"600s\": how long a crash-looping unready pod is tolerated before eviction. Pods without a sandbox or still pulling images are never reaped (issue #179). Null keeps the chart default (120s)."
   type        = string
   default     = null
 }

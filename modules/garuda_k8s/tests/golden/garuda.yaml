@@ -11,6 +11,7 @@ metadata:
     app.kubernetes.io/instance: g
     garuda.managed-by: helm
     app.kubernetes.io/component: pod-reaper
+
 ---
 # Source: garuda/templates/configmap-network-meta.yaml
 apiVersion: v1
@@ -26,7 +27,7 @@ metadata:
 data:
   backbone_subnet: "10.42.0.0/24"
   border_subnet: "10.43.0.0/24"
-  chart_version: "0.7.2"
+  chart_version: "0.11.0"
 
 ---
 # Source: garuda/templates/profile-cm-border.yaml
@@ -230,6 +231,7 @@ rules:
   - apiGroups: [""]
     resources: ["pods/eviction"]
     verbs: ["create"]
+
 ---
 # Source: garuda/templates/pod-reaper-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -287,6 +289,10 @@ spec:
               value: "garuda"
             - name: MAX_UNREADY
               value: "120s"
+            # Rules are ANDed: a pod is reaped only if it is unready AND a
+            # container has one of these statuses (init containers included).
+            - name: CONTAINER_STATUSES
+              value: "CrashLoopBackOff,Error,StartError,CreateContainerError"
             - name: EVICT
               value: "true"
             - name: GRACE_PERIOD
@@ -546,6 +552,7 @@ spec:
                        }
                      }}
           ]
+
 ---
 # Source: garuda/templates/map-inject-fabric.yaml
 # MAPBinding: ospf-router profile
@@ -570,6 +577,7 @@ spec:
         - key: net.garuda-tunnel/profile
           operator: In
           values: ["ospf-router"]
+
 ---
 # Source: garuda/templates/map-inject-fabric.yaml
 # MAPBinding: transit-provider profile
@@ -594,6 +602,7 @@ spec:
         - key: net.garuda-tunnel/profile
           operator: In
           values: ["transit-provider"]
+
 ---
 # Source: garuda/templates/map-inject-fabric.yaml
 # MAPBinding: border profile
@@ -780,6 +789,7 @@ spec:
         net.garuda-tunnel/frr-mode=raw forbids net.garuda-tunnel/interfaces and
         net.garuda-tunnel/redistribute — the raw ConfigMap is the authoritative FRR source;
         per-interface and redistribute annotations conflict with it.
+
 ---
 # Source: garuda/templates/vap-validate-intent.yaml
 # ValidatingAdmissionPolicyBinding: garuda-validate-intent-binding
@@ -821,6 +831,7 @@ metadata:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-weight: "-10"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+
 ---
 # Source: garuda/templates/multus-readiness-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -845,6 +856,7 @@ rules:
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list", "watch"]
+
 ---
 # Source: garuda/templates/multus-readiness-rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -894,8 +906,9 @@ spec:
   template:
     metadata:
       labels:
+        # No part-of=garuda: the pod reaper requires that label, and a hook
+        # pod it deletes fails the whole helm upgrade (issue #179).
         app.kubernetes.io/name: multus-readiness
-        app.kubernetes.io/part-of: garuda
     spec:
       serviceAccountName: g-garuda-multus-gate
       restartPolicy: Never

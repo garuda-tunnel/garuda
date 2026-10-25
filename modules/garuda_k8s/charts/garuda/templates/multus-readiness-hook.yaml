@@ -18,8 +18,9 @@ spec:
   template:
     metadata:
       labels:
+        # No part-of=garuda: the pod reaper requires that label, and a hook
+        # pod it deletes fails the whole helm upgrade (issue #179).
         app.kubernetes.io/name: multus-readiness
-        app.kubernetes.io/part-of: garuda
     spec:
       serviceAccountName: {{ include "garuda.fullname" . }}-multus-gate
       restartPolicy: Never

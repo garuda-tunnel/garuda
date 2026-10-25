@@ -23,6 +23,12 @@ podReaper:
   image: "target/pod-reaper:2.14.0@sha256:b8f908a99d9c503220f195d7f706e8ee0b012954ea10d263d6c219b042d196ec"
   maxUnready: "120s"
   evict: "true"
+  # containerStatuses: the reaper cannot see "pod has no sandbox yet", so it
+  # reaps only pods whose containers started and failed (for example an init
+  # container crash-looping because its Multus interface is missing). Pods
+  # still in ContainerCreating/PodInitializing are left alone: replacing them
+  # only adds CNI ADD/DEL load (issue #179).
+  containerStatuses: "CrashLoopBackOff,Error,StartError,CreateContainerError"
   gracePeriod: "30s"
   schedule: "@every 30s"
   # requireLabelKey / requireLabelValues: enabled after D-follow1 propagated

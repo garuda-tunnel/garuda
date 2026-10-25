@@ -13,7 +13,7 @@ metadata:
 data:
   backbone_subnet: "10.42.0.0/24"
   border_subnet: "10.43.0.0/24"
-  chart_version: "0.7.2"
+  chart_version: "0.11.0"
 
 ---
 # Source: garuda/templates/profile-cm-border.yaml
@@ -434,6 +434,7 @@ spec:
                        }
                      }}
           ]
+
 ---
 # Source: garuda/templates/map-inject-fabric.yaml
 # MAPBinding: ospf-router profile
@@ -458,6 +459,7 @@ spec:
         - key: net.garuda-tunnel/profile
           operator: In
           values: ["ospf-router"]
+
 ---
 # Source: garuda/templates/map-inject-fabric.yaml
 # MAPBinding: transit-provider profile
@@ -482,6 +484,7 @@ spec:
         - key: net.garuda-tunnel/profile
           operator: In
           values: ["transit-provider"]
+
 ---
 # Source: garuda/templates/map-inject-fabric.yaml
 # MAPBinding: border profile
@@ -668,6 +671,7 @@ spec:
         net.garuda-tunnel/frr-mode=raw forbids net.garuda-tunnel/interfaces and
         net.garuda-tunnel/redistribute — the raw ConfigMap is the authoritative FRR source;
         per-interface and redistribute annotations conflict with it.
+
 ---
 # Source: garuda/templates/vap-validate-intent.yaml
 # ValidatingAdmissionPolicyBinding: garuda-validate-intent-binding

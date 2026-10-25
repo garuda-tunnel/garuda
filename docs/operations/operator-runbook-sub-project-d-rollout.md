@@ -17,7 +17,7 @@ Three layers of defense, all delivered inside the `garuda` umbrella chart
 |---|---|---|
 | **L1** Helm pre-install/pre-upgrade hook | Job (`bitnami/kubectl`) `kubectl rollout status ds/kube-multus-ds -n kube-system` + `kubectl wait --for=condition=Ready node --all`. Blocks the chart release until kubelet has ingested the Multus delegate. | `--set multusReadiness.enabled=false` |
 | **L2** Terraform gate | `null_resource.multus_ready` in `modules/garuda_k8s/main.tf` local-execs the same kubectl waits; consumer modules `depends_on` it via output `multus_ready_id`. | (no values flag; remove the `depends_on` entries — see Known limitations) |
-| **L3** Pod-reaper insurance | `target/pod-reaper` Deployment namespace-scoped to `garuda`, evicts pods stuck `Ready=False > 120s` in the namespace. Self-reap protection via `EXCLUDE_LABEL_KEY=app.kubernetes.io/name` / `EXCLUDE_LABEL_VALUES=pod-reaper`. | `--set podReaper.enabled=false` |
+| **L3** Pod-reaper insurance | `target/pod-reaper` Deployment namespace-scoped to `garuda`, evicts pods stuck `Ready=False > 120s` whose containers started and failed (`podReaper.containerStatuses`); pods that never got a sandbox are left alone (issue #179). Self-reap protection via `EXCLUDE_LABEL_KEY=app.kubernetes.io/name` / `EXCLUDE_LABEL_VALUES=pod-reaper`. | `--set podReaper.enabled=false` |
 
 Both new images are digest-pinned in `values.yaml`. **Image digest updates
 are out-of-band** (Renovate or manual) — release-please does **not** update
@@ -180,8 +180,13 @@ Force-recreate scenario (the original failure mode):
 # 3. Workloads come up Ready on first attempt — no manual `kubectl rollout restart`.
 ```
 
-If a workload still arrives `Ready=False`, L3 (pod-reaper) evicts it after
-`MAX_UNREADY=120s` + `GRACE=30s` and the recreated pod gets a fresh CNI ADD.
+If a garuda-labelled (`app.kubernetes.io/part-of=garuda`) workload pod is
+unready longer than `MAX_UNREADY=120s` **and** has a container or init
+container in one of `CONTAINER_STATUSES` (`CrashLoopBackOff`, `Error`,
+`StartError`, `CreateContainerError` — a pod that lost the Multus attach race
+crash-loops), L3 (pod-reaper) evicts it after `GRACE=30s` and the recreated
+pod gets a fresh CNI ADD. Pods without a sandbox (`ContainerCreating`,
+`PodInitializing`) and pods still pulling images are left to the kubelet.
 
 ---
 
@@ -209,14 +214,16 @@ Pick the smallest action that unblocks:
 
 ## Known limitations / follow-ups
 
-1. **pod-reaper label filter (resolved):** The `REQUIRE_LABEL_KEY` filter
-   has been removed (MF1 Task 9 remediation). L3 now evicts **all** unready
-   pods in the `garuda` namespace, scoped only by `NAMESPACE`. Self-reap
-   protection is provided via `EXCLUDE_LABEL_KEY=app.kubernetes.io/name` /
-   `EXCLUDE_LABEL_VALUES=pod-reaper`. Consumer charts
-   (`wireguard`, `firezone`, `router`/`ipt-server`, `powerdns`,
-   `border-router`) do not need to emit `app.kubernetes.io/part-of=garuda`.
-   (`D-follow1` closed.)
+1. **pod-reaper scope (current rule, issue #179):** L3 reaps only pods
+   labelled `app.kubernetes.io/part-of=garuda` (`REQUIRE_LABEL_KEY` /
+   `REQUIRE_LABEL_VALUES`, re-enabled after D-follow1 propagated the label to
+   all consumer charts) that are unready longer than `MAX_UNREADY` **and**
+   have a container or init container in one of `CONTAINER_STATUSES`
+   (`CrashLoopBackOff`, `Error`, `StartError`, `CreateContainerError`).
+   Pods without a sandbox (`ContainerCreating`, `PodInitializing`) and pods
+   still pulling images are left to the kubelet. Self-reap protection is
+   provided via `EXCLUDE_LABEL_KEY=app.kubernetes.io/name` /
+   `EXCLUDE_LABEL_VALUES=pod-reaper`. (`D-follow1` closed.)
 2. **L2 TF gate has no off-switch:** `null_resource.multus_ready` is
    unconditional. A minor PR can add `count = var.multus_wait_enabled ? 1 : 0`
    plus a `multus_wait_enabled` variable defaulting to `true`. Not blocking;
