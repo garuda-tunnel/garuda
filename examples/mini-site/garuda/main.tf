@@ -14,7 +14,7 @@ locals {
 module "wireguard_tunnel" {
   for_each = var.edges
 
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v1.1.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v1.2.0"
 
   name     = "wg_${each.key}"
   env_slug = var.env_slug
@@ -47,9 +47,10 @@ module "garuda_k8s" {
     kubernetes = kubernetes.edge[each.key]
   }
 
-  namespace       = "garuda"
-  backbone_subnet = var.backbone_subnet
-  border_subnet   = var.border_subnet
+  namespace              = "garuda"
+  backbone_subnet        = var.backbone_subnet
+  border_subnet          = var.border_subnet
+  pod_reaper_max_unready = var.pod_reaper_max_unready
 }
 
 # --- garuda_guest intent for edge WireGuard workloads ---
@@ -67,6 +68,10 @@ module "garuda_guest_wireguard_kube_edge" {
   ospf_router_id       = each.value.ospf_router_id_peer
   networks             = ["backbone", "border"]
   interfaces           = module.wireguard_tunnel[each.key].peers["edge"].kernel_ifname
+
+  redistribute        = lookup(local.host_lan_frr, each.key, local.host_lan_frr_none).redistribute
+  frr_extra_configmap = lookup(local.host_lan_frr, each.key, local.host_lan_frr_none).frr_extra_configmap
+  configmaps          = lookup(local.host_lan_frr, each.key, local.host_lan_frr_none).configmaps
 }
 
 # --- WireGuard Kubernetes workloads: edge side (one deployment per edge) ---
@@ -99,7 +104,8 @@ module "wireguard_kube_edge" {
 # --- WireGuard tunnel key-pair for hub-ros (RouterOS <-> hub) ---
 
 module "wireguard_tunnel_hub_ros" {
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v1.1.0"
+  count  = var.routeros_enabled ? 1 : 0
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v1.2.0"
 
   name     = "wg_hub_ros"
   env_slug = var.env_slug
@@ -121,11 +127,12 @@ module "wireguard_tunnel_hub_ros" {
 # --- WireGuard RouterOS module: RouterOS side of hub-ros tunnel ---
 
 module "wireguard_routeros_hub_ros" {
+  count  = var.routeros_enabled ? 1 : 0
   source = "git::https://github.com/garuda-tunnel/wireguard-internal.git//routeros?ref=v2.0.0"
 
   hostname       = var.routeros.hostname
-  self           = module.wireguard_tunnel_hub_ros.peers["edge"]
-  remote         = module.wireguard_tunnel_hub_ros.peers["core"]
+  self           = module.wireguard_tunnel_hub_ros[0].peers["edge"]
+  remote         = module.wireguard_tunnel_hub_ros[0].peers["core"]
   subnet         = local.hub_ros_facts.subnet_cidr
   allowed_nets   = ["0.0.0.0/0", "224.0.0.0/4"]
   interface_list = "LAN"
@@ -139,15 +146,17 @@ module "wireguard_routeros_hub_ros" {
 # the per-tunnel PBR rule installed by the endpoint sync script has no nexthop
 # and the WG handshake packets are dropped.
 resource "routeros_ip_route" "hub_ros_bypass_default" {
+  count         = var.routeros_enabled ? 1 : 0
   dst_address   = "0.0.0.0/0"
   gateway       = var.routeros_lan_gateway
-  routing_table = module.wireguard_routeros_hub_ros.bypass_table_name
+  routing_table = module.wireguard_routeros_hub_ros[0].bypass_table_name
   comment       = "garuda: WG handshake bypass default for wg_hub_ros"
 }
 
 # --- RouterOS masquerade for VPN -> LAN traffic ---
 
 resource "routeros_ip_firewall_nat" "hub_ros_masquerade" {
+  count         = var.routeros_enabled ? 1 : 0
   chain         = "srcnat"
   action        = "masquerade"
   out_interface = var.routeros.uplink_interface
@@ -166,9 +175,10 @@ module "garuda_k8s_hub" {
     kubernetes = kubernetes.hub
   }
 
-  namespace       = "garuda"
-  backbone_subnet = var.backbone_subnet
-  border_subnet   = var.border_subnet
+  namespace              = "garuda"
+  backbone_subnet        = var.backbone_subnet
+  border_subnet          = var.border_subnet
+  pod_reaper_max_unready = var.pod_reaper_max_unready
 }
 
 # --- garuda_guest intent for hub-side edge WireGuard workloads (per edge) ---
@@ -217,13 +227,14 @@ module "wireguard_kube_hub" {
 # backbone subnets via OSPF. Transit consumer (PBR) for RouterOS traffic.
 
 module "garuda_guest_wireguard_kube_hub_ros" {
+  count  = var.routeros_enabled ? 1 : 0
   source = "./modules/garuda_guest"
 
   profile              = "ospf-router"
   garuda_chart_version = local.garuda_chart_version
   ospf_router_id       = var.hub_ros.ospf_router_id_hub
   networks             = ["backbone"]
-  interfaces           = "backbone,${module.wireguard_tunnel_hub_ros.peers["core"].kernel_ifname}"
+  interfaces           = "backbone,${module.wireguard_tunnel_hub_ros[0].peers["core"].kernel_ifname}"
   redistribute         = "kernel"
   transit_interfaces   = "wg-hub-ros"
 }
@@ -231,6 +242,7 @@ module "garuda_guest_wireguard_kube_hub_ros" {
 # --- Hub-side WireGuard kube deployment for RouterOS tunnel ---
 
 module "wireguard_kube_hub_ros" {
+  count  = var.routeros_enabled ? 1 : 0
   source = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
   chart_version = "2.0.0"
@@ -242,12 +254,12 @@ module "wireguard_kube_hub_ros" {
 
   namespace       = module.garuda_k8s_hub.namespace
   name            = "wg-hub-ros"
-  self            = module.wireguard_tunnel_hub_ros.peers["core"]
-  remote          = module.wireguard_tunnel_hub_ros.peers["edge"]
+  self            = module.wireguard_tunnel_hub_ros[0].peers["core"]
+  remote          = module.wireguard_tunnel_hub_ros[0].peers["edge"]
   wireguard_image = var.wireguard_image
-  annotations     = module.garuda_guest_wireguard_kube_hub_ros.annotations
-  labels          = module.garuda_guest_wireguard_kube_hub_ros.labels
-  configmaps      = module.garuda_guest_wireguard_kube_hub_ros.configmaps
+  annotations     = module.garuda_guest_wireguard_kube_hub_ros[0].annotations
+  labels          = module.garuda_guest_wireguard_kube_hub_ros[0].labels
+  configmaps      = module.garuda_guest_wireguard_kube_hub_ros[0].configmaps
   mtu_policy      = local.mtu_policy
 
   depends_on = [module.garuda_k8s_hub]
@@ -265,6 +277,10 @@ module "cert_manager" {
   email                         = var.cert_manager_email
   acme_server                   = var.cert_manager_acme_server
   allow_reserved_contact_domain = var.cert_manager_allow_reserved_contact_domain
+  solver                        = var.cert_manager_solver
+  rfc2136                       = var.cert_manager_rfc2136
+  acme_ca_bundle                = var.cert_manager_acme_ca_bundle
+  extra_args                    = var.cert_manager_extra_args
 
   depends_on = [module.garuda_k8s_hub]
 }
@@ -283,13 +299,15 @@ module "k8s_gateway_bootstrap" {
   gateway_class_name  = "traefik"
   cluster_issuer_name = module.cert_manager.cluster_issuer_name
   # cert_secret_name is derived as "<name>-tls" to keep the secret
-  # identity in lockstep with the listener identity. The smoke phase
-  # uses the same convention to look up the issued cert.
-  hostnames = [for entry in [
-    { name = "hub", hostname = local.firezone_fqdn },
-    { name = "panel", hostname = local.remnawave_panel_fqdn },
-    { name = "sub", hostname = local.remnawave_sub_fqdn },
-  ] : merge(entry, { cert_secret_name = "${entry.name}-tls" })]
+  # identity in lockstep with the listener identity, so a consumer can look
+  # up the issued cert by name.
+  hostnames = [for entry in concat(
+    [{ name = "hub", hostname = local.firezone_fqdn }],
+    var.remnawave_enabled ? [
+      { name = "panel", hostname = local.remnawave_panel_fqdn },
+      { name = "sub", hostname = local.remnawave_sub_fqdn },
+    ] : [],
+  ) : merge(entry, { cert_secret_name = "${entry.name}-tls" })]
 
   depends_on = [module.cert_manager]
 }
@@ -300,6 +318,7 @@ module "k8s_gateway_bootstrap" {
 # ipt-server via default route); not a PBR transit consumer (transit_interfaces="").
 
 module "garuda_guest_remnawave_node" {
+  count  = var.remnawave_enabled ? 1 : 0
   source = "./modules/garuda_guest"
 
   profile              = "ospf-router"
@@ -316,6 +335,7 @@ module "garuda_guest_remnawave_node" {
 # --- Remnawave panel + node (hub, k8s; panel is not a fabric guest, node is) ---
 
 module "remnawave_panel" {
+  count  = var.remnawave_enabled ? 1 : 0
   source = "git::https://github.com/garuda-tunnel/remnawave-internal.git//kube?ref=remnawave-node-v0.1.5"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/remnawave-panel
   chart_version = "0.1.11"
@@ -365,8 +385,8 @@ module "remnawave_panel" {
   # whose ServerHello+Certificate chain fits under REALITY's hardcoded 8192-byte
   # s2c buffer (a microsoft.com dest overflows it and the handshake aborts —
   # validated live 2026-07-10, see remnawave-internal PR #7 for the artifact).
-  node_pod_annotations = module.garuda_guest_remnawave_node.annotations
-  node_pod_labels      = module.garuda_guest_remnawave_node.labels
+  node_pod_annotations = module.garuda_guest_remnawave_node[0].annotations
+  node_pod_labels      = module.garuda_guest_remnawave_node[0].labels
 
   depends_on = [module.garuda_k8s_hub, module.cert_manager, module.k8s_gateway_bootstrap]
 }
@@ -421,13 +441,7 @@ module "firezone_kube" {
 
   encryption_secrets = var.firezone_encryption_secrets
 
-  oidc_providers = {
-    google = {
-      client_id     = var.firezone_oidc_google_client_id
-      client_secret = var.firezone_oidc_google_client_secret
-      label         = "Google"
-    }
-  }
+  oidc_providers = local.firezone_oidc_providers
 
   depends_on = [module.garuda_k8s_hub, module.cert_manager, module.k8s_gateway_bootstrap]
 }
@@ -450,9 +464,9 @@ module "garuda_guest_ipt_server_kube" {
 # --- ipt_server (hub, k8s) ---
 
 module "ipt_server_kube" {
-  source = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.2.9"
+  source = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.4.2"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/ipt-server
-  chart_version = "1.2.9"
+  chart_version = "1.4.2"
 
   providers = {
     helm       = helm.hub
@@ -462,15 +476,17 @@ module "ipt_server_kube" {
   namespace        = module.garuda_k8s_hub.namespace
   ipt_server_image = var.ipt_server_image
   powerdns_image   = var.ipt_powerdns_image
-  routes           = local.ipt_routes
-  nic_attach       = ["backbone"]
-  pbr_interfaces   = ["backbone"]
-  pinning_egress   = local.pinning_egress
-  annotations      = module.garuda_guest_ipt_server_kube.annotations
-  labels           = module.garuda_guest_ipt_server_kube.labels
-  configmaps       = module.garuda_guest_ipt_server_kube.configmaps
-  ospf             = null
-  mtu_policy       = local.mtu_policy
+  # Raw PowerDNS Recursor YAML drop-in (router-internal >= v1.3.0); "" adds nothing.
+  powerdns_extra_config = var.ipt_powerdns_extra_config
+  routes                = local.ipt_routes
+  nic_attach            = ["backbone"]
+  pbr_interfaces        = ["backbone"]
+  pinning_egress        = local.pinning_egress
+  annotations           = module.garuda_guest_ipt_server_kube.annotations
+  labels                = module.garuda_guest_ipt_server_kube.labels
+  configmaps            = module.garuda_guest_ipt_server_kube.configmaps
+  ospf                  = null
+  mtu_policy            = local.mtu_policy
 
   depends_on = [module.garuda_k8s_hub]
 }
@@ -489,6 +505,10 @@ module "garuda_guest_border_router" {
   # annotation -> MAP ROUTER_ID env -> frr-sidecar (border profile template ${ROUTER_ID}).
   # Same value also passed to the guest module's ospf{} for the egress-setup initContainer.
   ospf_router_id = var.border_router.router_id
+
+  redistribute        = lookup(local.host_lan_frr, "hub", local.host_lan_frr_none).redistribute
+  frr_extra_configmap = lookup(local.host_lan_frr, "hub", local.host_lan_frr_none).frr_extra_configmap
+  configmaps          = lookup(local.host_lan_frr, "hub", local.host_lan_frr_none).configmaps
 }
 
 # --- Local border egress (hub) ---
@@ -518,4 +538,49 @@ module "border_router" {
   mtu_policy = local.mtu_policy
 
   depends_on = [module.garuda_k8s_hub]
+}
+
+# --- Address migration for the opt-out flags ---
+# routeros_enabled / remnawave_enabled gate pre-existing resources with `count`,
+# which renames their addresses (x -> x[0]). These moved blocks keep existing
+# state attached, so default (flags on) plans show no destroy/create.
+
+moved {
+  from = module.wireguard_tunnel_hub_ros
+  to   = module.wireguard_tunnel_hub_ros[0]
+}
+
+moved {
+  from = module.wireguard_routeros_hub_ros
+  to   = module.wireguard_routeros_hub_ros[0]
+}
+
+moved {
+  from = routeros_ip_route.hub_ros_bypass_default
+  to   = routeros_ip_route.hub_ros_bypass_default[0]
+}
+
+moved {
+  from = routeros_ip_firewall_nat.hub_ros_masquerade
+  to   = routeros_ip_firewall_nat.hub_ros_masquerade[0]
+}
+
+moved {
+  from = module.garuda_guest_wireguard_kube_hub_ros
+  to   = module.garuda_guest_wireguard_kube_hub_ros[0]
+}
+
+moved {
+  from = module.wireguard_kube_hub_ros
+  to   = module.wireguard_kube_hub_ros[0]
+}
+
+moved {
+  from = module.garuda_guest_remnawave_node
+  to   = module.garuda_guest_remnawave_node[0]
+}
+
+moved {
+  from = module.remnawave_panel
+  to   = module.remnawave_panel[0]
 }

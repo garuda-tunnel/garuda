@@ -73,13 +73,11 @@ terragrunt apply
 
 cd ../garuda
 terragrunt apply
-
-cd ../smoke
-ansible-playbook z2g.yml
+terragrunt plan -detailed-exitcode   # 0 = the apply left no drift
 ```
 
-The `smoke/` directory describes the expected `z2g.yml` entrypoint. Wire the
-playbook before using this example for live verification.
+End-to-end tests live in the local stand only:
+[`examples/local-stand/e2e/README.md`](examples/local-stand/e2e/README.md).
 
 Firezone OIDC providers are reconciled automatically by the in-pod
 `oidc-reconcile` sidecar (`modules/firezone/kube`) on every apply — no
@@ -90,6 +88,8 @@ development. See [prerequisites](docs/getting-started/prerequisites.md#image-sou
 
 
 ## Documentation map
+
+Decisions: [Architecture decision records](docs/decisions/) (one file per settled decision).
 
 Concepts:
 
@@ -113,7 +113,6 @@ How-to:
 Operations:
 
 - [Troubleshooting](docs/operations/troubleshooting.md)
-- [Smoke testing](docs/operations/smoke-testing.md)
 - [Deploy / update / destroy](docs/operations/deploy-update-destroy.md)
 
 Reference:

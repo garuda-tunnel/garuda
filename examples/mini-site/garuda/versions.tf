@@ -7,10 +7,6 @@ terraform {
   # bumping this floor again should be coordinated with those modules.
 
   required_providers {
-    local = {
-      source  = "hashicorp/local"
-      version = ">= 2.5.3"
-    }
     routeros = {
       source  = "terraform-routeros/routeros"
       version = ">= 1.86.0"

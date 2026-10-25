@@ -1,8 +1,12 @@
+# When routeros_enabled=false every routeros_* resource is count-gated, but
+# OpenTofu still configures the provider. A REST placeholder plus an explicit
+# version constructs the client without dialing or reading RouterOS inputs.
 provider "routeros" {
-  hosturl  = "api://${var.routeros.management_host}"
-  username = var.routeros.user
-  password = var.routeros_password
-  insecure = true
+  hosturl          = var.routeros_enabled ? "api://${var.routeros.management_host}" : "https://127.0.0.1:0"
+  routeros_version = var.routeros_enabled ? null : "7.0"
+  username         = var.routeros_enabled ? var.routeros.user : "unused"
+  password         = var.routeros_enabled ? var.routeros_password : "unused"
+  insecure         = true
 }
 
 # --- Edge k3s providers: one instanced pair over var.edges. ---

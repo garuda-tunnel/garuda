@@ -267,14 +267,8 @@ for QUIC.
 
 ---
 
-## 9. Final live gate
+## 9. Post-apply verification
 
-Per AGENTS.md, the final live gate is the companion-environment playbook:
-
-```bash
-ansible-playbook test-config/vpn2/smoke/z2g.yml
-```
-
-Public docs point to `examples/mini-site/smoke` once the in-repo `z2g.yml`
-exists. The stand pin bump (`prod`, `mini-site`, `vpn2`) is the follow-up
-sub-project where AC15 live verification runs.
+After an apply, run `tofu plan -detailed-exitcode`; exit code 0 confirms there
+is no drift. The only e2e suite is the local stand:
+[`examples/local-stand/e2e/README.md`](../../examples/local-stand/e2e/README.md).

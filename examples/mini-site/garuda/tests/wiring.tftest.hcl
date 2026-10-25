@@ -1,8 +1,7 @@
-# Validates that the smoke inventory is correctly wired from connection_data.
+# Validates that the workload modules are correctly wired from the unit's inputs.
 
 mock_provider "routeros" {}
 mock_provider "wireguard" {}
-mock_provider "local" {}
 mock_provider "tls" {}
 mock_provider "dns" {}
 mock_provider "helm" {}
@@ -110,68 +109,6 @@ variables {
   firezone_oidc_google_client_id     = "test-id"
   firezone_oidc_google_client_secret = "test-secret"
 
-  smoke_client_firezone = {
-    inventory_name  = "fz-client-example"
-    management_host = "203.0.113.200"
-    user            = "operator"
-  }
-}
-
-run "smoke_inventory_contains_all_hosts" {
-  command = plan
-
-  assert {
-    condition     = contains(keys(output.ansible_smoke_inventory), "hub")
-    error_message = "smoke inventory must contain hub"
-  }
-
-  assert {
-    condition     = contains(keys(output.ansible_smoke_inventory), "pt")
-    error_message = "smoke inventory must contain pt"
-  }
-
-  assert {
-    condition     = contains(keys(output.ansible_smoke_inventory), "de")
-    error_message = "smoke inventory must contain de"
-  }
-
-  assert {
-    condition     = contains(keys(output.ansible_smoke_inventory), "routeros")
-    error_message = "smoke inventory must contain routeros"
-  }
-}
-
-run "routeros_inventory_uses_connection_data" {
-  command = plan
-
-  assert {
-    condition     = output.ansible_smoke_inventory.routeros.ansible_host == var.routeros.management_host
-    error_message = "routeros inventory host must come from var.routeros.management_host"
-  }
-
-  assert {
-    condition     = output.ansible_smoke_inventory.routeros.ansible_user == var.routeros.user
-    error_message = "routeros inventory user must come from var.routeros.user"
-  }
-}
-
-run "linux_inventory_uses_connection_data" {
-  command = plan
-
-  assert {
-    condition     = output.ansible_smoke_inventory.hub.ansible_host == var.connection_data_hub.host
-    error_message = "hub inventory host must come from var.connection_data_hub.host"
-  }
-
-  assert {
-    condition     = output.ansible_smoke_inventory.pt.ansible_host == var.connection_data_edges.pt.host
-    error_message = "pt inventory host must come from var.connection_data_edges.pt.host"
-  }
-
-  assert {
-    condition     = output.ansible_smoke_inventory.de.ansible_host == var.connection_data_edges.de.host
-    error_message = "de inventory host must come from var.connection_data_edges.de.host"
-  }
 }
 
 run "edge_k3s_modules_are_wired" {
@@ -217,7 +154,7 @@ run "hub_k3s_modules_are_wired" {
   }
 
   assert {
-    condition     = module.wireguard_kube_hub_ros.deployment_name == "wg-hub-ros"
+    condition     = module.wireguard_kube_hub_ros[0].deployment_name == "wg-hub-ros"
     error_message = "hub-side RouterOS deployment must be wg-hub-ros"
   }
 

@@ -18,9 +18,6 @@ Deploy in order:
 2. **`garuda/`** — Consumes `infra/` outputs and deploys hub workloads, edge
    WireGuard tunnels, RouterOS tunnel, Firezone, and `ipt_server`.
 
-3. **`smoke/`** — End-to-end verification after apply. Run after both units are
-   healthy.
-
 ## Quick start
 
 ```bash
@@ -29,13 +26,33 @@ terragrunt apply
 
 cd ../garuda
 terragrunt apply
-
-cd ../smoke
-ansible-playbook z2g.yml
+terragrunt plan -detailed-exitcode   # 0 = the apply left no drift
 ```
 
-The `smoke/` directory describes the expected `z2g.yml` entrypoint. Wire the
-playbook before using this example for live verification.
+End-to-end tests live in the local stand only:
+[`../local-stand/e2e/README.md`](../local-stand/e2e/README.md).
+
+## Upgrading to 0.20.0
+
+Callers of `examples/mini-site/garuda` pinned at `v0.19.x` must act on these
+removals before moving the `?ref=` to `v0.20.0`:
+
+- **Variable `smoke_client_firezone` is removed.** Stop passing it; an unknown
+  input is an error. The Firezone test client now lives in the local stand
+  (`examples/local-stand`).
+- **Outputs `ansible_smoke_inventory` and `ansible_client_inventory` are
+  removed.** Drop any dependency or consumer that reads them.
+- **`keys.tf` and the `hashicorp/local` provider requirement are removed.** The
+  first apply after the upgrade destroys three `local_sensitive_file` resources
+  (the hub key and one key per edge, under `.keys/`). This is a one-time,
+  expected plan; nothing on the hosts changes.
+- **`examples/mini-site/smoke/` (the z2g Ansible smoke) is removed.** End-to-end
+  tests now run on the local stand: [`../local-stand/e2e/README.md`](../local-stand/e2e/README.md).
+
+Additions are opt-in and default to the previous behaviour: `routeros_enabled`,
+`remnawave_enabled`, `firezone_oidc_enabled`, `ipt_route_groups`, the
+`cert_manager_*` RFC 2136 solver inputs, `pod_reaper_max_unready`, and the
+`mtu_policy` output.
 
 ## Adapting for real deployments
 

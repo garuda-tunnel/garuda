@@ -84,14 +84,14 @@ recreation — no second apply is needed.
 Expected: all workloads are running. OSPF adjacencies are up. WireGuard tunnels
 are active. Firezone is reachable at the configured FQDN with a valid TLS cert.
 
-## Step 5: Run smoke tests
+## Step 5: Check for drift
 
 ```bash
-ansible-playbook examples/mini-site/smoke/z2g.yml
+tofu -chdir=examples/mini-site/garuda plan -detailed-exitcode
 ```
 
-See [smoke testing runbook](../operations/smoke-testing.md) for the full phase
-description.
+Expected: exit code 0 (no changes). The end-to-end tests run only in the local
+stand: [`examples/local-stand/e2e/README.md`](../../examples/local-stand/e2e/README.md).
 
 ## Update
 

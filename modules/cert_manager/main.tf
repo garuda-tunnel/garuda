@@ -16,12 +16,38 @@ locals {
     "@localhost",
   ]
 
-  email_lower         = lower(var.email)
+  email_lower = lower(var.email)
   email_uses_reserved = anytrue([
     for s in local.reserved_email_suffixes :
     endswith(local.email_lower, s)
   ])
   acme_server_is_staging = strcontains(lower(var.acme_server), "acme-staging")
+
+  rfc2136_enabled = var.solver == "rfc2136"
+
+  # Optional keys are only rendered when used, so the default http01 values
+  # (and thus both Helm releases) stay byte-identical. The one-element-list
+  # for-expressions keep the unused branch from being evaluated (var.rfc2136
+  # is null for http01) and avoid object-type unification in conditionals.
+  controller_extra_values = merge([
+    for _ in(length(var.extra_args) > 0 ? [1] : []) : { extraArgs = var.extra_args }
+  ]...)
+
+  issuer_extra_values = merge(concat(
+    [
+      for _ in(local.rfc2136_enabled ? [1] : []) : {
+        solver = "rfc2136"
+        rfc2136 = {
+          nameserver    = nonsensitive(var.rfc2136.nameserver)
+          tsigKeyName   = nonsensitive(var.rfc2136.tsig_key_name)
+          tsigAlgorithm = nonsensitive(var.rfc2136.tsig_algorithm)
+        }
+      }
+    ],
+    [
+      for _ in(var.acme_ca_bundle != null ? [1] : []) : { caBundle = base64encode(var.acme_ca_bundle) }
+    ],
+  )...)
 
   contact_email_ok = (
     !local.email_uses_reserved
@@ -62,7 +88,7 @@ resource "helm_release" "cert_manager" {
   version    = var.chart_version
 
   values = [
-    yamlencode({
+    yamlencode(merge({
       installCRDs = true
       # Enable cert-manager's Gateway API integration (gateway-shim controller).
       # Since cert-manager v1.15 the feature is no longer behind the old
@@ -76,7 +102,9 @@ resource "helm_release" "cert_manager" {
       config = {
         enableGatewayAPI = true
       }
-    })
+      },
+      local.controller_extra_values,
+    ))
   ]
 }
 
@@ -87,12 +115,24 @@ resource "helm_release" "cluster_issuer" {
   chart            = "${path.module}/charts/cluster-issuer"
 
   values = [
-    yamlencode({
-      name       = var.cluster_issuer_name
-      acmeServer = var.acme_server
-      email      = var.email
-    })
+    yamlencode(merge(
+      {
+        name       = var.cluster_issuer_name
+        acmeServer = var.acme_server
+        email      = var.email
+      },
+      local.issuer_extra_values,
+    ))
   ]
+
+  dynamic "set_sensitive" {
+    for_each = local.rfc2136_enabled ? [1] : []
+    content {
+      name  = "rfc2136.tsigSecret"
+      value = var.rfc2136.tsig_secret
+      type  = "string"
+    }
+  }
 
   depends_on = [helm_release.cert_manager]
 }

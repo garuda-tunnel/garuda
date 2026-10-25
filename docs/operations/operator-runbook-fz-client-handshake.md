@@ -2,16 +2,17 @@
 
 ## Symptom
 
-`test-config/vpn2/smoke/z2g.yml` Phase 8 §8.1 fails with:
+A Firezone client cannot reach the hub RouterOS LAN gateway through the
+WireGuard tunnel and reports:
 
 ```
-PING 192.168.88.1 (192.168.88.1) ... 56 data bytes
---- 192.168.88.1 ping statistics ---
+PING 192.0.2.1 (192.0.2.1) ... 56 data bytes
+--- 192.0.2.1 ping statistics ---
 N packets transmitted, 0 received, 100% packet loss
 ```
 
 (i.e. the Firezone client host cannot reach the hub RouterOS LAN gateway through
-the Firezone WireGuard tunnel, after Phase 0–7 have all passed.)
+the Firezone WireGuard tunnel.)
 
 ## Class
 
@@ -83,9 +84,12 @@ Firezone server has rotated the peer key, Option 1 is mandatory.
 # Fresh handshake (<1 min ago)
 sudo wg show
 
-# §8.1 should now pass
-ansible-playbook test-config/vpn2/smoke/z2g.yml --tags phase8
+# Confirm the deployed unit has no drift.
+terragrunt plan -detailed-exitcode
 ```
+
+The only e2e suite is the local stand:
+[`examples/local-stand/e2e/README.md`](../../examples/local-stand/e2e/README.md).
 
 ## Prevention
 

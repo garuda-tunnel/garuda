@@ -52,13 +52,17 @@ resource "helm_release" "garuda" {
   chart            = "${path.module}/charts/garuda"
 
   values = [
-    yamlencode({
-      namespace        = var.namespace
-      backboneSubnet   = var.backbone_subnet
-      borderSubnet     = var.border_subnet
-      borderGateway    = cidrhost(var.border_subnet, 1)
-      borderRangeStart = cidrhost(var.border_subnet, 2)
-    })
+    yamlencode(merge(
+      {
+        namespace        = var.namespace
+        backboneSubnet   = var.backbone_subnet
+        borderSubnet     = var.border_subnet
+        borderGateway    = cidrhost(var.border_subnet, 1)
+        borderRangeStart = cidrhost(var.border_subnet, 2)
+      },
+      # Helm deep-merges this over the chart's podReaper defaults.
+      var.pod_reaper_max_unready == null ? {} : { podReaper = { maxUnready = var.pod_reaper_max_unready } },
+    ))
   ]
 
   # Hard ordering: the NetworkAttachmentDefinition CRD is registered

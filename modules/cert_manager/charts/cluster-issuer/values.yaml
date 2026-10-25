@@ -1,3 +1,11 @@
 name: letsencrypt-prod
 acmeServer: https://acme-v02.api.letsencrypt.org/directory
 email: admin@example.net
+solver: http01
+# rfc2136 solver settings (used when solver=rfc2136):
+# rfc2136:
+#   nameserver: host:port
+#   tsigKeyName: key-name.
+#   tsigAlgorithm: HMACSHA256
+#   tsigSecret: base64-key
+# caBundle: base64-encoded PEM bundle for the ACME server TLS certificate

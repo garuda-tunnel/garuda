@@ -1,11 +1,4 @@
 locals {
-  # --- Ansible inventory host names (transient, derived from env_slug). ---
-  # hub: fixed key; edges: keyed by edge slug.
-  host_names = merge(
-    { hub = "hub-${var.env_slug}" },
-    { for k, _ in var.edges : k => "${k}-${var.env_slug}" }
-  )
-
   # --- Hub FQDN derived from hub_fqdn_prefix + base_domain. ---
   # Shared by Firezone (server_url) and Remnawave subscription Hosts
   # (public address clients dial for the VPN inbounds).
@@ -22,9 +15,11 @@ locals {
   }
 
   # --- Hub-ros tunnel facts (RouterOS <-> hub). subnet_cidr only. ---
-  hub_ros_facts = {
+  # Null when routeros_enabled=false (var.hub_ros may then be null); every
+  # consumer is count-gated on routeros_enabled.
+  hub_ros_facts = var.routeros_enabled ? {
     subnet_cidr = "${cidrhost(var.hub_ros.hub_cidr, 0)}/${split("/", var.hub_ros.hub_cidr)[1]}"
-  }
+  } : null
 
   # --- Firezone workload facts. ---
   firezone_facts = {
@@ -34,6 +29,29 @@ locals {
     client_subnet  = var.firezone_client_subnet
   }
 
+  # --- Host LANs (var.host_lans). ---
+  # FRR Tier 2 snippet per owner pod: static route to the LAN via the border gateway (the node) and
+  # var.host_lan_alias on border, so the node can route the Firezone client subnet back to a stable
+  # address. The alias is outside border_subnet: host-local IPAM never allocates it.
+  host_lan_configmap = "frr-host-lan"
+  host_lan_alias     = "${var.host_lan_alias}/32"
+  host_lan_frr = {
+    for k, lan in var.host_lans : k => {
+      redistribute        = "static"
+      frr_extra_configmap = local.host_lan_configmap
+      configmaps = {
+        (local.host_lan_configmap) = {
+          "host-lan.conf" = templatefile("${path.module}/templates/host-lan.conf.tftpl", {
+            lan   = lan
+            gw    = cidrhost(var.border_subnet, 1)
+            alias = local.host_lan_alias
+          })
+        }
+      }
+    }
+  }
+  host_lan_frr_none = { redistribute = "", frr_extra_configmap = "", configmaps = {} }
+
   # --- ipt_server pinning_egress: one entry per edge + the local border. ---
   # gw = peer address for edges; gw = border_router router-id for local egress.
   pinning_egress = merge(
@@ -41,17 +59,15 @@ locals {
     { border = { gw = var.border_router.router_id } },
   )
 
-  # --- ipt_routes: primary -> fallback. ---
-  # Egress order derived from var.edges iteration (lexicographic by key): de -> pt.
-  # The last-resort fallback and the RU group both target border_router via
+  # --- Route groups (roles): primary -> fallback. ---
+  # A role is an edge key or "border". The default egress order follows
+  # var.edges iteration (lexicographic by key): de -> pt -> border. The
+  # last-resort fallback and the RU group both target border_router via
   # gw=<router_id> (was dev=border, which used a gateway-less nexthop and dropped
   # off-link RU destinations — see the spec Problem section).
-  ipt_routes = [
+  default_route_groups = [
     {
-      route = concat(
-        [for k, e in var.edges : { gw = split("/", e.peer_cidr)[0] }],
-        [{ gw = var.border_router.router_id }],
-      )
+      egress = concat(keys(var.edges), ["border"])
       rules = concat(
         [
           ".*",
@@ -61,13 +77,40 @@ locals {
       )
     },
     {
-      route = [{ gw = var.border_router.router_id }]
+      egress = ["border"]
       rules = [
         "RU",
         ".*\\.ru",
       ]
     },
   ]
+
+  ipt_route_groups_effective = var.ipt_route_groups != null ? var.ipt_route_groups : local.default_route_groups
+
+  # role -> next-hop: edge peer address, or the border_router router-id.
+  role_gw = merge(
+    { for k, e in var.edges : k => split("/", e.peer_cidr)[0] },
+    { border = var.border_router.router_id },
+  )
+
+  # --- ipt_routes: role groups resolved to gateways for ipt_server. ---
+  ipt_routes = [
+    for g in local.ipt_route_groups_effective : {
+      route = [for r in g.egress : { gw = local.role_gw[r] }]
+      rules = g.rules
+    }
+  ]
+
+  # --- Firezone OIDC providers: empty map disables OIDC entirely. ---
+  # One-element-list for-expression: the client id/secret (null when OIDC is
+  # off) are only touched when enabled, and no conditional type unification.
+  firezone_oidc_providers = {
+    for k in(var.firezone_oidc_enabled ? ["google"] : []) : k => {
+      client_id     = var.firezone_oidc_google_client_id
+      client_secret = var.firezone_oidc_google_client_secret
+      label         = "Google"
+    }
+  }
 
   # --- Tunnel state -> per-node materialized kubeconfig paths ---
   # garuda-tunnel runs `kube_targets` with `daemon.materialize=true`

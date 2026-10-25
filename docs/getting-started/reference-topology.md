@@ -19,7 +19,6 @@ shape.
 examples/mini-site/
   infra/           # Provisions compute, DNS, and k3s cloud-init
   garuda/          # Deploys workloads (consumes infra outputs)
-  smoke/           # End-to-end verification
   inputs.tfvars.yaml.example
 ```
 

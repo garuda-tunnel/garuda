@@ -54,21 +54,55 @@ variable "cloudflare_edges" {
   }))
 }
 
+# --- Stand opt-out flags (defaults reproduce the cloud/vpn2 plan) ---
+variable "routeros_enabled" {
+  description = "Manage the RouterOS peer (hub-ros tunnel, RouterOS NAT/route). Set false for stands without RouterOS; the RouterOS inputs may then be null."
+  type        = bool
+  default     = true
+}
+
+variable "remnawave_enabled" {
+  description = "Deploy the Remnawave panel and node (and expose their gateway hostnames). Set false for stands without Remnawave."
+  type        = bool
+  default     = true
+}
+
+variable "firezone_oidc_enabled" {
+  description = "Configure the Google OIDC provider on Firezone. Set false to use local Firezone credentials only; the OIDC client id/secret may then be null."
+  type        = bool
+  default     = true
+}
+
 # --- RouterOS handles (same shape as inputs.tfvars.yaml::routeros) ---
 variable "routeros" {
-  description = "RouterOS connection handles from infra/."
+  description = "RouterOS connection handles from infra/. Required when routeros_enabled."
   type = object({
     hostname         = string
     management_host  = string
     user             = string
     uplink_interface = string
   })
+  default  = null
+  nullable = true
+
+  validation {
+    condition     = !var.routeros_enabled || var.routeros != null
+    error_message = "routeros must be set when routeros_enabled is true."
+  }
 }
 
 # --- RouterOS password (from SOPS via root.hcl, not from infra dependency) ---
 variable "routeros_password" {
-  type      = string
-  sensitive = true
+  description = "RouterOS API password. Required when routeros_enabled."
+  type        = string
+  sensitive   = true
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = !var.routeros_enabled || var.routeros_password != null
+    error_message = "routeros_password must be set when routeros_enabled is true."
+  }
 }
 
 # --- Topology CIDRs (flat, non host-scoped) ---
@@ -107,22 +141,35 @@ variable "edges" {
 
 # --- Hub-ros WireGuard tunnel (RouterOS ↔ hub) ---
 variable "hub_ros" {
-  description = "WireGuard tunnel parameters for the RouterOS ↔ hub tunnel."
+  description = "WireGuard tunnel parameters for the RouterOS ↔ hub tunnel. Required when routeros_enabled."
   type = object({
     hub_cidr           = string
     routeros_cidr      = string
     listen_port        = number
     ospf_router_id_hub = string
   })
+  default  = null
+  nullable = true
+
+  validation {
+    condition     = !var.routeros_enabled || var.hub_ros != null
+    error_message = "hub_ros must be set when routeros_enabled is true."
+  }
 }
 
 # --- OSPF router ids for non-tunnel workloads ---
 variable "ospf_router_ids" {
+  description = "OSPF router ids. remnawave_node is required only when remnawave_enabled."
   type = object({
     firezone       = string
     ipt_server     = string
-    remnawave_node = string
+    remnawave_node = optional(string)
   })
+
+  validation {
+    condition     = !var.remnawave_enabled || var.ospf_router_ids.remnawave_node != null
+    error_message = "ospf_router_ids.remnawave_node must be set when remnawave_enabled is true."
+  }
 }
 
 # --- Local border egress (border_router) ---
@@ -152,6 +199,31 @@ variable "border_router_image" {
 
 # --- Geo routing ---
 variable "ipt_routes_germany_nets" { type = list(string) }
+
+variable "ipt_route_groups" {
+  description = <<EOT
+Optional override of the ipt_server route groups. Each group lists the
+destination rules and the ordered egress roles (primary first, then
+fallbacks). A role is an edge key from var.edges or "border" (the local
+border_router). Null keeps the built-in country/domain routing.
+EOT
+  type = list(object({
+    egress = list(string)
+    rules  = list(string)
+  }))
+  default = null
+
+  validation {
+    condition = var.ipt_route_groups == null || (
+      length(var.ipt_route_groups) > 0 && alltrue([
+        for g in var.ipt_route_groups : length(g.egress) > 0 && alltrue([
+          for r in g.egress : contains(concat(keys(var.edges), ["border"]), r)
+        ])
+      ])
+    )
+    error_message = "ipt_route_groups must contain groups with egress entries that are edge keys from var.edges or \"border\"."
+  }
+}
 
 # --- Firezone (SOPS secrets + public OIDC client id) ---
 variable "firezone_admin_password" {
@@ -204,10 +276,29 @@ variable "cert_manager_allow_reserved_contact_domain" {
   default     = true
 }
 
-variable "firezone_oidc_google_client_id" { type = string }
+variable "firezone_oidc_google_client_id" {
+  description = "Google OIDC client id. Required when firezone_oidc_enabled."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = !var.firezone_oidc_enabled || var.firezone_oidc_google_client_id != null
+    error_message = "firezone_oidc_google_client_id must be set when firezone_oidc_enabled is true."
+  }
+}
+
 variable "firezone_oidc_google_client_secret" {
-  type      = string
-  sensitive = true
+  description = "Google OIDC client secret. Required when firezone_oidc_enabled."
+  type        = string
+  sensitive   = true
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = !var.firezone_oidc_enabled || var.firezone_oidc_google_client_secret != null
+    error_message = "firezone_oidc_google_client_secret must be set when firezone_oidc_enabled is true."
+  }
 }
 
 variable "firezone_encryption_secrets" {
@@ -230,19 +321,115 @@ EOT
   sensitive = true
 }
 
-# --- Smoke client (pre-existing VPN client, not managed infra) ---
-variable "smoke_client_firezone" {
-  type = object({
-    inventory_name  = string
-    management_host = string
-    user            = string
-  })
-}
-
 # --- RouterOS LAN gateway (used for WG handshake bypass route) ---
 variable "routeros_lan_gateway" {
-  description = "Default gateway on the RouterOS LAN (used as nexthop for the WG handshake bypass route)."
+  description = "Default gateway on the RouterOS LAN (used as nexthop for the WG handshake bypass route). Required when routeros_enabled."
   type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = !var.routeros_enabled || var.routeros_lan_gateway != null
+    error_message = "routeros_lan_gateway must be set when routeros_enabled is true."
+  }
+}
+
+# --- pod-reaper (hub and edges) ---
+variable "pod_reaper_max_unready" {
+  description = "Override of the garuda chart's podReaper.maxUnready on every cluster, for example \"600s\". Image pulls count as unready time: a stand with a slow first pull needs more than the chart default (120s). Null keeps the chart default."
+  type        = string
+  default     = null
+}
+
+# --- Host LANs behind the nodes ---
+variable "host_lans" {
+  description = <<-EOT
+    RFC 1918 LANs that live on a node host (not in the cluster) and must be reachable through garuda, keyed by
+    node: "hub" or an edge key. The pod that owns the node's border interface (border-router on the hub,
+    wg-<edge> on an edge) gets a static route to the LAN via the border gateway (the node), redistributes it
+    into OSPF, and holds host_lan_alias on border. The node needs a return route for firezone_client_subnet via
+    that alias, see examples/local-stand. The client subnet must be private (RFC 1918): the wireguard pods only
+    bypass the border default for private destinations. Empty (default) changes nothing.
+  EOT
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for k, c in var.host_lans : can(cidrnetmask(c)) && anytrue([
+        for r in ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"] : try(cidrcontains(r, c), false)
+      ])
+    ])
+    error_message = "host_lans values must be IPv4 CIDRs contained in 10.0.0.0/8, 172.16.0.0/12 or 192.168.0.0/16."
+  }
+  validation {
+    condition     = alltrue([for k in keys(var.host_lans) : k == "hub" || contains(keys(var.edges), k)])
+    error_message = "host_lans keys must be \"hub\" or a key of var.edges."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for k, c in var.host_lans : [
+        for o in [var.firezone_client_subnet, var.backbone_subnet, var.border_subnet] :
+        !try(cidrcontains(o, c) || cidrcontains(c, o), false)
+      ]
+    ]))
+    error_message = "host_lans must not overlap firezone_client_subnet, backbone_subnet or border_subnet."
+  }
+  validation {
+    condition = length(var.host_lans) == 0 || anytrue([
+      for r in ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"] : try(cidrcontains(r, var.firezone_client_subnet), false)
+    ])
+    error_message = "host_lans needs an RFC 1918 firezone_client_subnet: replies to clients and LAN-initiated flows are only kept inside for private destinations."
+  }
+}
+
+variable "host_lan_alias" {
+  description = "Fixed address of the pod that owns a node's border interface (see host_lans), the next hop of the node's return route for the Firezone client subnet. It lives OUTSIDE border_subnet on purpose, so the border bridge's host-local IPAM can never hand it to another pod. Link-local by default."
+  type        = string
+  default     = "169.254.1.1"
+
+  validation {
+    # cidrnetmask, not cidrhost: the latter also accepts IPv6 literals.
+    condition     = can(cidrnetmask("${var.host_lan_alias}/32"))
+    error_message = "host_lan_alias must be an IPv4 address."
+  }
+  validation {
+    condition = !anytrue([
+      for o in [var.border_subnet, var.backbone_subnet, var.firezone_client_subnet] : try(cidrcontains(o, var.host_lan_alias), false)
+    ])
+    error_message = "host_lan_alias must be outside border_subnet, backbone_subnet and firezone_client_subnet."
+  }
+}
+
+# --- cert-manager solver (hub) ---
+variable "cert_manager_solver" {
+  description = "ACME solver: \"http01\" (default, traefik) or \"rfc2136\" (DNS-01 with TSIG)."
+  type        = string
+  default     = "http01"
+}
+
+variable "cert_manager_rfc2136" {
+  description = "RFC 2136 solver settings (nameserver host:port, TSIG key name/algorithm/secret). Required when cert_manager_solver is \"rfc2136\"."
+  type = object({
+    nameserver     = string
+    tsig_key_name  = string
+    tsig_algorithm = optional(string, "HMACSHA256")
+    tsig_secret    = string
+  })
+  default   = null
+  sensitive = true
+}
+
+variable "cert_manager_acme_ca_bundle" {
+  description = "Optional PEM CA bundle for the ACME server TLS certificate (base64-encoded by the module into spec.acme.caBundle)."
+  type        = string
+  default     = null
+}
+
+variable "cert_manager_extra_args" {
+  description = "Extra cert-manager controller arguments (Helm extraArgs), for example DNS-01 recursive nameserver flags."
+  type        = list(string)
+  default     = []
 }
 
 # --- Workload container images ---
@@ -265,7 +452,13 @@ variable "ipt_server_image" {
 }
 
 variable "ipt_powerdns_image" {
-  description = "Docker image for the PowerDNS container used by ipt_server. Leave empty (default) to let the chart pin its own image at :.Chart.Version; set to override (never :latest)."
+  description = "Docker image for the PowerDNS container used by ipt_server. Leave empty (default) to let the chart pin its image at :.Chart.Version; set to override (never :latest)."
+  type        = string
+  default     = ""
+}
+
+variable "ipt_powerdns_extra_config" {
+  description = "Raw PowerDNS Recursor YAML settings for the ipt-server workload Recursor (e.g. forward_zones_recurse / dnssec.negative_trustanchors). Empty (default) adds nothing."
   type        = string
   default     = ""
 }

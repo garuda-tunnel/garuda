@@ -75,14 +75,17 @@ and NADs) is removed last within each cluster.
 
 ## Post-apply health check
 
-Run the smoke playbook once `garuda-tunnel` is active and the apply succeeded:
+Once `garuda-tunnel` is active and the apply succeeded, a second plan must be empty:
 
 ```bash
-ansible-playbook examples/mini-site/smoke/z2g.yml
+tofu -chdir=examples/mini-site/garuda plan -detailed-exitcode
 ```
+
+Exit code 0 means no drift; 2 means the apply is not idempotent. The end-to-end
+tests run only in the local stand:
+[`examples/local-stand/e2e/README.md`](../../examples/local-stand/e2e/README.md).
 
 ## Further reading
 
-- [Smoke testing](smoke-testing.md)
 - [Troubleshooting](troubleshooting.md)
 - [First deploy guide](../getting-started/first-deploy.md)

@@ -4,8 +4,10 @@ output "namespace" {
 
   # Consumers use this output to place workloads into the namespace. Make the
   # output depend on the CNI/NAD bootstrap too, so workload pods cannot be
-  # created before Multus and the NetworkAttachmentDefinitions are ready.
-  depends_on = [helm_release.garuda]
+  # created before Multus and the NetworkAttachmentDefinitions are ready, and
+  # on the MAP/MAPBinding propagation sleep so pods are not admitted before the
+  # injection policy is enforced.
+  depends_on = [helm_release.garuda, time_sleep.map_propagation]
 }
 
 output "backbone_nad_name" {

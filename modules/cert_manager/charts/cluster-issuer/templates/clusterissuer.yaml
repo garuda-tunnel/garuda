@@ -6,9 +6,23 @@ spec:
   acme:
     server: {{ .Values.acmeServer | quote }}
     email: {{ .Values.email | quote }}
+{{- with .Values.caBundle }}
+    caBundle: {{ . | quote }}
+{{- end }}
     privateKeySecretRef:
       name: {{ printf "%s-account" .Values.name | quote }}
     solvers:
+{{- if eq .Values.solver "rfc2136" }}
+      - dns01:
+          rfc2136:
+            nameserver: {{ .Values.rfc2136.nameserver | quote }}
+            tsigKeyName: {{ .Values.rfc2136.tsigKeyName | quote }}
+            tsigAlgorithm: {{ .Values.rfc2136.tsigAlgorithm | quote }}
+            tsigSecretSecretRef:
+              name: {{ printf "%s-rfc2136-tsig" .Values.name | quote }}
+              key: tsig-secret
+{{- else }}
       - http01:
           ingress:
             class: traefik
+{{- end }}

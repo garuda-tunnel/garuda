@@ -54,6 +54,6 @@ variable "enable_traefik_gateway_provider" {
     mechanism (custom Traefik install, kustomize, etc.) to avoid
     HelmChartConfig owner conflicts.
   EOT
-  type    = bool
-  default = true
+  type        = bool
+  default     = true
 }

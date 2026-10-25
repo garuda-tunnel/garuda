@@ -65,7 +65,7 @@ routeros_lan_gateway = "203.0.113.1"
 
 backbone_subnet        = "192.0.2.0/26"
 border_subnet          = "192.0.2.64/26"
-firezone_client_subnet = "198.51.100.128/25"
+firezone_client_subnet = "10.0.24.0/24"
 
 hub_fqdn_prefix = "hub"
 base_domain     = "example.net"
@@ -121,9 +121,3 @@ ipt_routes_germany_nets = []
 firezone_admin_password            = "my-firezone-admin-password"
 firezone_oidc_google_client_id     = "my-oidc-client-id.apps.googleusercontent.com"
 firezone_oidc_google_client_secret = "my-oidc-client-secret"
-
-smoke_client_firezone = {
-  inventory_name  = "fz-client-example"
-  management_host = "203.0.113.200"
-  user            = "operator"
-}

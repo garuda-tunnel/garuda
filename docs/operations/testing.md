@@ -17,23 +17,13 @@ tofu -chdir=modules/gcp_compute_host test
 # garuda-tunnel/border-router: tofu test
 ```
 
-## Run live smoke
-
-After a successful apply and with `garuda-tunnel` running:
-
-```bash
-ansible-playbook examples/mini-site/smoke/z2g.yml
-```
-
-`z2g.yml` is the public smoke entrypoint. It bootstraps its inventory from
-`tofu output -json` and runs verification phases against the live stand.
-See `examples/mini-site/smoke/README.md` for the expected checks.
-
 ## Post-apply health check
 
-Use the smoke playbook (`z2g.yml`) once the apply completes.
+After a successful apply a second plan must be empty
+(`tofu -chdir=examples/mini-site/garuda plan -detailed-exitcode`, exit code 0).
+The only end-to-end suite is the pytest suite of the local stand,
+[`examples/local-stand/e2e/README.md`](../../examples/local-stand/e2e/README.md).
 
 ## Further reading
 
 - [Testing reference](../reference/testing.md) — full layer description.
-- [Smoke testing](smoke-testing.md) — what smoke tests cover.

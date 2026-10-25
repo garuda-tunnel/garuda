@@ -75,16 +75,20 @@ Tradeoffs:
   helm-controller reconciles the new HelmChartConfig asynchronously,
   so the Gateway will sit at `Programmed=Unknown / Waiting for
   controller` for a few seconds while Traefik restarts with the new
-  provider arg. The smoke phase polls Gateway readiness, so this
-  asynchrony is observed there, not silenced. Stands that already
+  provider arg. On the local stand,
+  `examples/local-stand/e2e/test_10_health.py` checks that every
+  Gateway is Programmed, so this asynchrony is observed there, not
+  silenced; cloud consumers get only the `plan` drift check. Stands that already
   enable the provider out-of-band set
   `enable_traefik_gateway_provider = false` and avoid this dance.
 
 - **No module-side validation that the provider was successfully
   enabled.** A consumer who sets `enable_traefik_gateway_provider =
   false` while the provider is in fact NOT enabled out-of-band gets a
-  Gateway that never becomes Programmed. The smoke phase catches this
-  failure mode; the module does not.
+  Gateway that never becomes Programmed. On the local stand
+  `examples/local-stand/e2e/test_10_health.py` catches this failure
+  mode; cloud consumers get only the `plan` drift check, which does
+  not; neither does the module.
 
 The in-chart placement is preferred over the top-level
 `kubernetes_manifest` because the latter requires the Kubernetes

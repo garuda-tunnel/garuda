@@ -59,7 +59,7 @@ routeros_lan_gateway: "203.0.113.1"
 
 backbone_subnet: 192.0.2.0/26
 border_subnet: 192.0.2.64/26
-firezone_client_subnet: 198.51.100.128/25
+firezone_client_subnet: 10.0.24.0/24
 
 ospf_router_ids:
   firezone: 198.51.100.22
@@ -79,11 +79,6 @@ routeros_password: "REPLACE_WITH_SOPS_SECRET"
 firezone_admin_password: "REPLACE_WITH_SOPS_SECRET"
 firezone_oidc_google_client_id: "my-oidc-client-id.apps.googleusercontent.com"
 firezone_oidc_google_client_secret: "REPLACE_WITH_SOPS_SECRET"
-
-smoke_client_firezone:
-  inventory_name: fz-client-example
-  management_host: 203.0.113.200
-  user: operator
 
 # Additional routes for ipt_server (type-inferred: CIDR, ISO country, regex).
 ipt_routes_germany_nets: []

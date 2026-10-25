@@ -114,8 +114,10 @@ In-repo umbrella consumer; bump happens via a PR in this repo.
 - [ ] Open PR bumping `examples/mini-site/garuda/terragrunt.hcl` umbrella
       source `?ref=` to the new umbrella semver (e.g. `v0.3.0`).
 - [ ] CI green; merge.
-- [ ] (Optional) live apply on the mini-site stand and re-run z2g smoke if
-      the mini-site has a live target.
+- [ ] (Optional) live apply on the mini-site stand and check that the next
+      `plan -detailed-exitcode` exits 0, if the mini-site has a live target.
+      The only e2e suite is the local stand:
+      [`examples/local-stand/e2e/README.md`](../../examples/local-stand/e2e/README.md).
 
 ### `<stand-name>` — production hub stand (out-of-repo)
 
@@ -145,12 +147,9 @@ currently pinned at umbrella `v0.2.0`.
 - [ ] Edit `test-config/vpn2/deploy/garuda/terragrunt.hcl` umbrella source
       `?ref=v0.2.0` → `?ref=v0.3.0`.
 - [ ] `terragrunt apply`.
-- [ ] Run the z2g live gate:
-      ```bash
-      ansible-playbook test-config/vpn2/smoke/z2g.yml
-      ```
-      Expect Phases 0–7 PASS as in C2b; Phase 8 §8.1 may still trip on
-      fz-client fixture drift (orthogonal, see existing runbook).
+- [ ] `terragrunt plan -detailed-exitcode` exits 0 after the apply. The only
+      e2e suite is the local stand:
+      [`examples/local-stand/e2e/README.md`](../../examples/local-stand/e2e/README.md).
 
 ---
 

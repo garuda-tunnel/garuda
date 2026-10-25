@@ -19,6 +19,25 @@ This Terragrunt unit deploys Garuda workloads. It depends on `infra/` outputs.
 | `cloudflare_edges`     | `infra/` output |
 | `routeros`             | `infra/` output |
 
+## Stand opt-out flags and overrides
+
+Defaults reproduce the cloud plan. A local stand can turn pieces off:
+
+| Input | Default | Effect |
+|---|---|---|
+| `routeros_enabled` | `true` | `false` drops the hub-ros tunnel, RouterOS NAT/route; `routeros*`, `hub_ros` and `routeros_lan_gateway` may then be null. Use only for stands without RouterOS objects in state. |
+| `remnawave_enabled` | `true` | `false` drops the Remnawave panel/node, their gateway hostnames and outputs (null). |
+| `firezone_oidc_enabled` | `true` | `false` configures no OIDC provider; the Google client id/secret may be null. |
+| `ipt_route_groups` | `null` | List of `{ egress = [edge key or "border"], rules = [...] }` replacing the built-in routing; effective roles are exposed as output `ipt_route_groups_egress`. |
+| `cert_manager_solver`, `cert_manager_rfc2136`, `cert_manager_acme_ca_bundle`, `cert_manager_extra_args` | `http01`, `null`, `null`, `[]` | RFC 2136 DNS-01 solver, ACME CA bundle and controller args (see `modules/cert_manager`). |
+| `host_lans` | `{}` | RFC 1918 LANs behind a node host, keyed by `hub` or an edge key: the border-owner pod gets a static route, redistributes it into OSPF and holds `host_lan_alias`; the node gets a return route for `firezone_client_subnet` (see `examples/local-stand`). |
+| `host_lan_alias` | `"169.254.1.1"` | Next hop of the node's return route, deliberately outside `border_subnet`. Avoid on Calico clusters, where this address is the pod gateway. |
+| `pod_reaper_max_unready` | `null` | `podReaper.maxUnready` override on every cluster, for example `"600s"` for a stand with slow first image pulls. |
+| `ipt_powerdns_extra_config` | `""` | Raw PowerDNS Recursor YAML drop-in for the ipt-server workload Recursor (`forward_zones_recurse`, `dnssec.negative_trustanchors`); empty adds nothing. |
+
+The gated resources use `count`; `moved` blocks in `main.tf` keep their state
+addresses (`x` to `x[0]`) so default plans show no destroy/create.
+
 ## Operator prerequisites
 
 This unit's Terragrunt wrapper invokes `garuda-tunnel` through `uvx` in a

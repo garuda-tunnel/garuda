@@ -1,9 +1,8 @@
 # Validates computed locals in garuda/ module.
-# Covers ipt_routes, tunnel_facts, firezone_facts, smoke inventory shape.
+# Covers ipt_routes, tunnel_facts, firezone_facts.
 
 mock_provider "routeros" {}
 mock_provider "wireguard" {}
-mock_provider "local" {}
 mock_provider "tls" {}
 mock_provider "dns" {}
 mock_provider "helm" {}
@@ -111,11 +110,6 @@ variables {
   firezone_oidc_google_client_id     = "test-id"
   firezone_oidc_google_client_secret = "test-secret"
 
-  smoke_client_firezone = {
-    inventory_name  = "fz-client-example"
-    management_host = "203.0.113.200"
-    user            = "operator"
-  }
 
   tunnel_path = "tests/fixtures/tunnel-state-hub-pt-de.json"
 }
@@ -246,48 +240,6 @@ run "regression_catchall_domain_in_ipt_routes" {
   assert {
     condition     = output.ipt_routes_count > 0
     error_message = "ipt_routes must not be empty"
-  }
-}
-
-run "ansible_smoke_inventory_shape" {
-  command = plan
-
-  assert {
-    condition     = length(keys(output.ansible_smoke_inventory)) == 4
-    error_message = "ansible_smoke_inventory must expose exactly 4 managed hosts (hub, pt, de, routeros)"
-  }
-
-  assert {
-    condition     = contains(output.ansible_smoke_inventory.routeros.groups, "routeros")
-    error_message = "routeros entry must be in 'routeros' group"
-  }
-
-  assert {
-    condition     = contains(output.ansible_smoke_inventory.hub.groups, "linux_hosts")
-    error_message = "hub must be in 'linux_hosts' group"
-  }
-
-  assert {
-    condition = alltrue([
-      for name, entry in output.ansible_smoke_inventory :
-      contains(entry.groups, "smoke_all")
-    ])
-    error_message = "every host must be in 'smoke_all' group"
-  }
-
-  assert {
-    condition     = contains(output.ansible_smoke_inventory.pt.groups, "k3s_hosts")
-    error_message = "pt smoke inventory entry must be in k3s_hosts"
-  }
-
-  assert {
-    condition     = contains(output.ansible_smoke_inventory.de.groups, "k3s_hosts")
-    error_message = "de smoke inventory entry must be in k3s_hosts"
-  }
-
-  assert {
-    condition     = contains(output.ansible_smoke_inventory.hub.groups, "k3s_hosts")
-    error_message = "hub smoke inventory entry must be in k3s_hosts"
   }
 }
 

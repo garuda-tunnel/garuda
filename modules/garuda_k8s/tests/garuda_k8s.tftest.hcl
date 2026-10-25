@@ -191,3 +191,35 @@ run "map_propagation_id_non_empty_string" {
     error_message = "map_propagation_id must not be an empty string; time_sleep.map_propagation must be in the plan"
   }
 }
+
+run "pod_reaper_default_leaves_chart_values_alone" {
+  command = plan
+
+  assert {
+    condition     = !strcontains(helm_release.garuda.values[0], "podReaper")
+    error_message = "without pod_reaper_max_unready the rendered values must not mention podReaper (chart default 120s applies)"
+  }
+}
+
+run "pod_reaper_max_unready_overrides_only_that_key" {
+  command = plan
+
+  variables {
+    pod_reaper_max_unready = "600s"
+  }
+
+  assert {
+    condition     = yamldecode(helm_release.garuda.values[0]).podReaper == { maxUnready = "600s" }
+    error_message = "pod_reaper_max_unready must render exactly podReaper.maxUnready"
+  }
+}
+
+run "pod_reaper_max_unready_rejects_bad_duration" {
+  command = plan
+
+  variables {
+    pod_reaper_max_unready = "soon"
+  }
+
+  expect_failures = [var.pod_reaper_max_unready]
+}

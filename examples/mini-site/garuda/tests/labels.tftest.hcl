@@ -2,7 +2,6 @@
 
 mock_provider "routeros" {}
 mock_provider "wireguard" {}
-mock_provider "local" {}
 mock_provider "tls" {}
 mock_provider "dns" {}
 mock_provider "helm" {}
@@ -110,11 +109,6 @@ variables {
   firezone_oidc_google_client_id     = "test-id"
   firezone_oidc_google_client_secret = "test-secret"
 
-  smoke_client_firezone = {
-    inventory_name  = "fz-client-example"
-    management_host = "203.0.113.200"
-    user            = "operator"
-  }
 }
 
 run "ipt_server_garuda_guest_router_id" {

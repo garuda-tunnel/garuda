@@ -2,7 +2,8 @@
 
 Installs cert-manager on the hub Kubernetes cluster and creates one
 `ClusterIssuer` for Let's Encrypt using HTTP-01 challenge solved by
-Traefik ingress.
+Traefik ingress. An optional RFC 2136 (TSIG) DNS-01 solver is available for
+stands with a private zone.
 
 ## Inputs
 
@@ -13,6 +14,10 @@ Traefik ingress.
 | `allow_reserved_contact_domain` | bool | `false` | Set to `true` to permit reserved or example domains (e.g. `example.net`) in the `email` argument. Required when the stand uses a placeholder address; has no effect on production email addresses. |
 | `cluster_issuer_name` | string | `letsencrypt-prod` | ClusterIssuer resource name. |
 | `chart_version` | string | module default | Jetstack cert-manager Helm chart version. |
+| `solver` | string | `http01` | `http01` (traefik ingress) or `rfc2136` (DNS-01 with TSIG). The default renders the same issuer as before. |
+| `rfc2136` | object (sensitive) | `null` | `{ nameserver, tsig_key_name, tsig_algorithm = "HMACSHA256", tsig_secret }`; required when `solver = "rfc2136"`. The secret goes into a Secret in the `cert-manager` namespace via a sensitive Helm value. |
+| `acme_ca_bundle` | string | `null` | PEM CA bundle for the ACME server TLS certificate; base64-encoded into `spec.acme.caBundle`. |
+| `extra_args` | list(string) | `[]` | Extra cert-manager controller arguments (Helm `extraArgs`), e.g. `--dns01-recursive-nameservers-only`. |
 
 ## Outputs
 
@@ -46,4 +51,4 @@ module "cert_manager" {
 
 - Does not create per-app `Certificate` resources.
 - Does not install or configure Traefik itself.
-- Does not perform DNS-01 setup or cloud DNS API integration.
+- Does not provision the DNS server or TSIG key used by the `rfc2136` solver, and has no cloud DNS API integration.
