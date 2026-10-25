@@ -8,7 +8,7 @@ for the first time.
 Complete all items in [prerequisites](prerequisites.md):
 
 - OpenTofu, Terragrunt, SOPS, and `garuda-tunnel` installed.
-- Cloud provider credentials configured (Yandex Cloud for hub, GCP for edges).
+- Cloud provider credentials configured (Proxmox VE for the hub, GCP for edges).
 - SSH key generated and ready.
 - Container images available from `ghcr.io/garuda-tunnel/garuda-*` (default; override
   image variables if using a custom registry).
@@ -35,7 +35,7 @@ Use SOPS encryption for production inputs.
 
 ## Step 2: Apply infra
 
-The `infra/` unit provisions compute VMs, DNS records, and k3s cloud-init:
+The `infra/` unit provisions compute VMs, DNS records, and k3s via k3s-bootstrap:
 
 ```bash
 tofu -chdir=examples/mini-site/infra init
@@ -43,8 +43,8 @@ tofu -chdir=examples/mini-site/infra plan
 tofu -chdir=examples/mini-site/infra apply
 ```
 
-Expected: hub VM (Yandex Cloud) and edge VMs (GCP) are running with k3s bootstrapped
-via cloud-init. DNS records are created. SSH access is available.
+Expected: hub VM (Proxmox VE) and edge VMs (GCP) are running with k3s bootstrapped
+via k3s-bootstrap. DNS records are created. SSH access is available.
 
 ## Step 3: Start garuda-tunnel
 

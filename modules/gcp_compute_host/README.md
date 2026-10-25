@@ -1,7 +1,9 @@
 # gcp_compute_host
 
 Provisions a Linux VM in Google Cloud with:
-- Auto-generated keypair for a module-managed deploy user (default `garuda`)
+- A keypair for a module-managed deploy user (default `garuda`):
+  auto-generated, or caller-supplied via `ssh_public_key` (then no key
+  material is generated and `connection_data.ssh_private_key` is null)
 - Operator/extra ssh keys passed verbatim through metadata
 - Optional caller-owned disks attached via `attached_disks` (caller creates
   `google_compute_disk`; module attaches, formats on first boot, mounts)
@@ -14,7 +16,7 @@ Keys flow through `metadata["ssh-keys"]` only. `google-guest-agent`
 each user's `~/.ssh/authorized_keys` within seconds — no reboot, no
 cloud-init users block, no per-boot scripts.
 
-Rotating `tls_private_key.admin` (`terraform apply -replace=module.X.tls_private_key.admin`)
+Rotating `tls_private_key.admin[0]` (`terraform apply -replace=module.X.tls_private_key.admin[0]`)
 or editing `var.ssh_keys` triggers an in-place metadata update.
 `allow_stopping_for_update = true` is recommended on the caller side for
 metadata changes that GCP cannot apply on a running instance.
@@ -46,8 +48,9 @@ not having the variable defined at all.
 | `image_project`           | (module default)              | Image project id (e.g. `ubuntu-os-cloud`).                           |
 | `nat`                     | `true`                        | Allocate ephemeral external IP.                                      |
 | `public_ip`               | `null`                        | Static external IP id (overrides `nat`).                             |
-| `ssh_user`                | `"garuda"`                    | Module-managed deploy user.                                          |
-| `ssh_keys`                | _(required)_                  | List of raw `user:public_key` lines for metadata['ssh-keys']. Pass `[]` to opt into "generated admin key only" mode. Format-validated; rejects malformed entries; `null` is not allowed (`nullable = false`). |
+| `ssh_user`                | `"garuda"`                    | Module-managed deploy user; seeded with `ssh_public_key` when set, otherwise with a module-generated keypair. |
+| `ssh_public_key`          | `null`                        | External public key for `ssh_user` in `user`-less OpenSSH form (`keytype keydata [comment]`). When set, no `tls_private_key` is created and `connection_data.ssh_private_key` is null — the caller connects with its own private key by path. |
+| `ssh_keys`                | _(required)_                  | List of raw `user:public_key` lines for metadata['ssh-keys']. Pass `[]` to opt into "managed deploy user key only" mode. Format-validated; rejects malformed entries; `null` is not allowed (`nullable = false`). |
 | `attached_disks`          | `[]`                          | Caller-owned disks to attach and mount. Each entry: `{ disk_id, device_name, mount_path, fs_type }`. The module never creates disks. See "With attached disks" below. |
 | `default_ingress`         | `true`                        | Create module-managed firewall rule (SSH/HTTP/HTTPS/ICMP/UDP-all).   |
 | `ingress_ports`           | `[]`                          | Additional ingress rules.                                            |
@@ -61,10 +64,11 @@ not having the variable defined at all.
 
 | Output              | Description                                                              |
 |---------------------|--------------------------------------------------------------------------|
-| `connection_data`   | Bundle: `{host, user, ssh_private_key, connection, network_os, ...}`. The `instance_token` field carries the cloud instance id (`google_compute_instance.self_link`). Downstream consumers use it to detect VM recreation (the `instance_token` changes when the instance is replaced). |
+| `connection_data`   | Bundle: `{host, user, ssh_private_key, connection, network_os, ...}`. The `instance_token` field carries the instance self_link (`instance_self_link`); it changes when the instance is replaced. `ssh_private_key` is null when `ssh_public_key` was set. |
 | `public_ipv4`       | External IP if `nat = true` or `public_ip` set; null otherwise.          |
 | `private_ipv4`      | Primary NIC internal IP.                                                 |
-| `instance_id`       | GCP compute instance id.                                                 |
+| `instance_id`       | Numeric GCE instance id (use as a per-generation discriminator, e.g. k3s-bootstrap `host_generation`). |
+| `instance_self_link`| GCE instance self_link URL.                                             |
 
 ## Examples
 

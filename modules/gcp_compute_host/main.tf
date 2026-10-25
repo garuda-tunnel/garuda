@@ -1,9 +1,19 @@
-# SSH key for the module-managed deploy user. Always generated. Public key
-# goes into metadata["ssh-keys"] together with var.ssh_keys; private key is
-# exposed via outputs.connection_data.ssh_private_key. No filesystem dump —
-# callers must consume the key through the output.
+# SSH key for the module-managed deploy user. Generated ONLY when the caller
+# does not supply ssh_public_key; the external path never creates key material.
+# The effective public key goes into metadata["ssh-keys"] together with
+# var.ssh_keys; a generated private key is exposed via
+# outputs.connection_data.ssh_private_key (null with an external key).
 resource "tls_private_key" "admin" {
+  count = var.ssh_public_key == null ? 1 : 0
+
   algorithm = "ED25519"
+}
+
+# The resource moved from un-counted to count = 1 when ssh_public_key was
+# added; keep existing state (generated keys) without recreation.
+moved {
+  from = tls_private_key.admin
+  to   = tls_private_key.admin[0]
 }
 
 # Optional regional static IP

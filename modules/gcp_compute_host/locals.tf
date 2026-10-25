@@ -13,14 +13,17 @@ locals {
   firewall_tag = "garuda-fw-${local.instance_name}"
 
   # SSH keys: single channel through metadata["ssh-keys"].
-  # Module always generates a keypair for var.ssh_user. Operator/extra keys
-  # in var.ssh_keys are appended verbatim. google-guest-agent (preinstalled
-  # on every official Ubuntu image on GCP) reads metadata and writes
-  # per-user authorized_keys files live — no cloud-init users block,
-  # no per-boot script, no reboot needed for rotation.
+  # The deploy user (var.ssh_user) gets the caller-supplied ssh_public_key
+  # when set, otherwise the module-generated keypair. Operator/extra keys in
+  # var.ssh_keys are appended verbatim. google-guest-agent (preinstalled on
+  # every official Ubuntu image on GCP) reads metadata and writes per-user
+  # authorized_keys files live — no cloud-init users block, no per-boot
+  # script, no reboot needed for rotation.
+  managed_public_key = var.ssh_public_key != null ? trimspace(var.ssh_public_key) : trimspace(one(tls_private_key.admin[*].public_key_openssh))
+
   ssh_keys_metadata = join("\n", concat(
     var.ssh_keys,
-    ["${var.ssh_user}:${trimspace(tls_private_key.admin.public_key_openssh)}"],
+    ["${var.ssh_user}:${local.managed_public_key}"],
   ))
 
   # Disk mount cloud-config rendering. Empty string when attached_disks is

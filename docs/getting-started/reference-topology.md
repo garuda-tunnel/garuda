@@ -24,8 +24,8 @@ examples/mini-site/
 
 ## infra/ unit
 
-The `infra/` unit provisions cloud compute, DNS records, and k3s cloud-init
-user-data. It exports facts that `garuda/` consumes:
+The `infra/` unit provisions cloud compute, DNS records, and k3s (installed
+controller-side by k3s-bootstrap). It exports facts that `garuda/` consumes:
 
 | Output                  | Type                     | Consumer                                       |
 |-------------------------|--------------------------|------------------------------------------------|
@@ -35,8 +35,10 @@ user-data. It exports facts that `garuda/` consumes:
 | `cloudflare_edges`      | map of DNS records       | Edge FQDNs used as WireGuard endpoint hosts    |
 | `routeros`              | RouterOS bootstrap object| `wireguard/routeros` module                    |
 
-k3s is bootstrapped on each VM via `modules/k3s_cloud_init` cloud-init user-data
-parts, which are injected into the compute module's `user_data_parts` input.
+k3s is installed on the hub and each edge by k3s-bootstrap (`?ref=v0.2.0`):
+controller-side Ansible over SSH, one single-member cluster per node. Host keys
+are trust-on-first-use — a per-host `terraform_data` runs `ssh-keyscan` into the
+stand known_hosts file before the bootstrap.
 
 ## garuda/ unit
 

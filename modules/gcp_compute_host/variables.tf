@@ -87,13 +87,34 @@ variable "boot_disk_type" {
 
 variable "ssh_user" {
   description = <<EOT
-Username for the module-managed deploy account. A keypair is auto-generated
-for this user, exposed via connection_data.ssh_private_key, and added to
-metadata['ssh-keys'] as `$${var.ssh_user}:<generated_pubkey>`. Defaults to
+Username for the module-managed deploy account. Seeded with the caller's
+ssh_public_key when set (then no keypair is generated and
+connection_data.ssh_private_key is null), otherwise with a module-generated
+keypair exposed via connection_data.ssh_private_key; either way the key is
+added to metadata['ssh-keys'] as `$${var.ssh_user}:<pubkey>`. Defaults to
 "garuda" to keep the deploy account distinct from any operator login.
 EOT
   type        = string
   default     = "garuda"
+}
+
+variable "ssh_public_key" {
+  description = <<EOT
+External public SSH key for var.ssh_user. When set, the module does NOT
+generate a keypair: no tls_private_key is created and
+connection_data.ssh_private_key is null — the caller connects with its own
+private key (by path) and no key content crosses the module boundary.
+When null (default), the module generates an ED25519 keypair and behaves
+exactly as before.
+EOT
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.ssh_public_key == null || can(regex("^(ssh-(rsa|ed25519)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp(256|384|521))@openssh\\.com)\\s\\S+", var.ssh_public_key))
+    error_message = "ssh_public_key must be null or an OpenSSH public key line: 'ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256/384/521|sk-*@openssh.com <keydata> [comment]'."
+  }
 }
 
 variable "ssh_keys" {
@@ -122,11 +143,11 @@ EOT
   validation {
     condition = alltrue([
       for k in var.ssh_keys : can(regex(
-        "^[a-z_][a-z0-9_-]{0,31}:ssh-(rsa|ed25519|ecdsa-[a-z0-9-]+)\\s",
+        "^[a-z_][a-z0-9_-]{0,31}:(ssh-(rsa|ed25519)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp(256|384|521))@openssh\\.com)\\s",
         k,
       ))
     ])
-    error_message = "Each ssh_keys entry must match 'username:keytype keydata [comment]' format. Username: 1-32 chars matching POSIX (start with letter or _); keytype: ssh-rsa, ssh-ed25519, or ssh-ecdsa-*."
+    error_message = "Each ssh_keys entry must match 'username:keytype keydata [comment]' format. Username: 1-32 chars matching POSIX (start with letter or _); keytype: ssh-rsa, ssh-ed25519, ecdsa-sha2-nistp256/384/521, or sk-*@openssh.com."
   }
 }
 

@@ -249,8 +249,71 @@ run "contract_connection_data_carries_instance_token" {
   command = plan
 
   assert {
-    condition     = output.connection_data.instance_token == output.instance_id
-    error_message = "connection_data.instance_token must equal output.instance_id so VM recreation propagates to downstream replacement triggers"
+    condition     = output.connection_data.instance_token == output.instance_self_link
+    error_message = "connection_data.instance_token must equal output.instance_self_link so VM recreation propagates to downstream replacement triggers"
+  }
+}
+
+run "contract_instance_id_is_numeric" {
+  command = plan
+
+  assert {
+    condition     = output.instance_id == google_compute_instance.this.instance_id
+    error_message = "instance_id output must be the numeric GCE instance id, not the self_link"
+  }
+}
+
+run "contract_ssh_keys_accepts_ecdsa_and_sk_keytypes" {
+  command = plan
+
+  variables {
+    ssh_keys = [
+      "alice:ecdsa-sha2-nistp256 AAAE2VjZHNhLXNoYTItbmlzdHAyNTYtest alice@host",
+      "bob:sk-ssh-ed25519@openssh.com AAAAC3NzaC1lZDI1NTE5test bob@host",
+      "carol:sk-ecdsa-sha2-nistp256@openssh.com AAAAtest carol@host",
+    ]
+  }
+
+  assert {
+    condition     = can(regex("alice:ecdsa-sha2-nistp256 ", output.test_ssh_keys_metadata))
+    error_message = "ecdsa-sha2-nistp256 keys must be accepted in ssh_keys"
+  }
+
+  assert {
+    condition     = can(regex("bob:sk-ssh-ed25519@openssh.com ", output.test_ssh_keys_metadata))
+    error_message = "sk-ssh-ed25519 hardware keys must be accepted in ssh_keys"
+  }
+
+  assert {
+    condition     = can(regex("carol:sk-ecdsa-sha2-nistp256@openssh.com ", output.test_ssh_keys_metadata))
+    error_message = "sk-ecdsa hardware keys must be accepted in ssh_keys"
+  }
+}
+
+run "contract_ssh_public_key_accepts_ecdsa_and_sk_keytypes" {
+  command = plan
+
+  variables {
+    ssh_keys       = []
+    ssh_public_key = "sk-ssh-ed25519@openssh.com AAAAC3NzaC1lZDI1NTE5testsk stand@example.net"
+  }
+
+  assert {
+    condition     = can(regex("garuda:sk-ssh-ed25519@openssh.com ", output.test_ssh_keys_metadata))
+    error_message = "ssh_public_key must accept sk-* hardware keys"
+  }
+}
+
+run "contract_boot_image_is_var_image" {
+  command = plan
+
+  variables {
+    ssh_keys = []
+  }
+
+  assert {
+    condition     = output.test_boot_image == var.image
+    error_message = "boot disk must use var.image verbatim"
   }
 }
 
@@ -309,6 +372,59 @@ run "contract_ssh_keys_validation_rejects_bad_keytype" {
   }
 
   expect_failures = [var.ssh_keys]
+}
+
+run "contract_ssh_public_key_external_replaces_generated_key" {
+  command = plan
+
+  variables {
+    ssh_keys       = []
+    ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexternalexternal stand@example.net"
+  }
+
+  assert {
+    condition     = length(tls_private_key.admin) == 0
+    error_message = "An external ssh_public_key must not create tls_private_key.admin."
+  }
+
+  assert {
+    condition     = output.connection_data.ssh_private_key == null
+    error_message = "connection_data.ssh_private_key must be null when ssh_public_key is set — key content never leaves the caller."
+  }
+
+  assert {
+    condition     = can(regex("garuda:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexternalexternal", output.test_ssh_keys_metadata))
+    error_message = "The external key must be seeded for var.ssh_user in metadata['ssh-keys']."
+  }
+}
+
+run "contract_ssh_public_key_null_keeps_generated_key" {
+  command = plan
+
+  variables {
+    ssh_keys = []
+  }
+
+  assert {
+    condition     = length(tls_private_key.admin) == 1
+    error_message = "Without ssh_public_key the module must keep generating its keypair."
+  }
+
+  assert {
+    condition     = output.connection_data.ssh_private_key != null
+    error_message = "connection_data.ssh_private_key must stay populated when ssh_public_key is null (existing behaviour)."
+  }
+}
+
+run "contract_ssh_public_key_validation_rejects_malformed" {
+  command = plan
+
+  variables {
+    ssh_keys       = []
+    ssh_public_key = "not-a-public-key"
+  }
+
+  expect_failures = [var.ssh_public_key]
 }
 
 run "user_data_parts_default_empty_no_user_data_metadata" {

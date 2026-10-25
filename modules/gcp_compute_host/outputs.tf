@@ -1,5 +1,10 @@
 output "instance_id" {
-  description = "GCE compute instance self_link (used as a stable resource identifier)."
+  description = "Numeric GCE instance id (changes when the instance is replaced)."
+  value       = google_compute_instance.this.instance_id
+}
+
+output "instance_self_link" {
+  description = "GCE compute instance self_link URL (stable resource identifier)."
   value       = google_compute_instance.this.self_link
 }
 
@@ -69,13 +74,13 @@ output "static_ip_address_id" {
 }
 
 output "ssh_private_key_openssh" {
-  description = "OpenSSH-formatted private key for the module-managed user (always generated)."
-  value       = tls_private_key.admin.private_key_openssh
+  description = "OpenSSH-formatted private key for the module-managed user. Null when ssh_public_key is set (caller-owned key)."
+  value       = one(tls_private_key.admin[*].private_key_openssh)
   sensitive   = true
 }
 
 output "connection_data" {
-  description = "Ansible/Terraform-friendly connection bundle for this host. Matches the connection_data variable type used by Linux workload modules. instance_token = google_compute_instance.self_link, used downstream as an opaque substrate-generation discriminator that forces ansible re-apply on VM recreate."
+  description = "Ansible/Terraform-friendly connection bundle for this host. Matches the connection_data variable type used by Linux workload modules. instance_token = google_compute_instance.self_link, used downstream as an opaque substrate-generation discriminator that forces ansible re-apply on VM recreate. ssh_private_key is null when the caller supplied ssh_public_key — connect with the caller's key by path instead."
   sensitive   = true
   value = {
     host                 = try(google_compute_instance.this.network_interface[0].access_config[0].nat_ip, google_compute_instance.this.network_interface[0].network_ip)
@@ -84,7 +89,7 @@ output "connection_data" {
     network_os           = "linux"
     password             = null
     ssh_private_key_file = null
-    ssh_private_key      = tls_private_key.admin.private_key_openssh
+    ssh_private_key      = one(tls_private_key.admin[*].private_key_openssh)
     instance_token       = google_compute_instance.this.self_link
   }
 }
@@ -109,4 +114,9 @@ output "test_cloud_init_user_data" {
   EOT
   sensitive   = true
   value       = local.needs_cloud_init ? data.cloudinit_config.this[0].rendered : null
+}
+
+output "test_boot_image" {
+  description = "Internal: boot image spec from the instance config (var.image; lifecycle ignores upstream family drift). Testing use only."
+  value       = google_compute_instance.this.boot_disk[0].initialize_params[0].image
 }

@@ -16,8 +16,9 @@ Terraform workflow.
 ## Cloud credentials
 
 You need credentials for the cloud providers that host your compute. The
-`yc_compute_host` module provisions the hub in Yandex Cloud; `gcp_compute_host`
-provisions edge nodes in Google Cloud. Credentials are consumed by the respective
+The mini-site example provisions the hub on Proxmox VE (`bpg/proxmox`);
+`gcp_compute_host` provisions edge nodes in Google Cloud (the `yc_compute_host`
+module remains available for Yandex Cloud hubs). Credentials are consumed by the respective
 Terraform providers.
 
 ## SSH key delivery

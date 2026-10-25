@@ -54,6 +54,44 @@ Additions are opt-in and default to the previous behaviour: `routeros_enabled`,
 `cert_manager_*` RFC 2136 solver inputs, `pod_reaper_max_unready`, and the
 `mtu_policy` output.
 
+## Upgrading to 0.21.0
+
+Callers of `examples/mini-site/infra` pinned at `v0.20.x` must act on these
+changes before moving the `?ref=` to `v0.21.0`. This is a migration, not a bump:
+
+- **The Yandex Cloud hub is removed.** `yc.tf`, the `yandex` provider and the
+  inputs `yc`, `yc_service_account_key_json`, `hub` and `hub_ingress_port_ranges`
+  are gone; an unknown input is an error. **Callers whose hub runs on Yandex
+  Cloud must stay on `v0.20.x`** until a YC hub returns. The hub and a test
+  client are now Proxmox VE VMs (`bpg/proxmox`).
+- **New required inputs:** `proxmox` (endpoint, node, pool, datastore, bridge,
+  image, gateway, DNS, `hub` and `client` sizing), `ssh_public_key_file`,
+  `ssh_private_key_file`, `known_hosts_file` (absolute), `k3s_version` and
+  `cluster_cidrs`. **New optional inputs:** `api_trusted_cidrs`, `gcp_image`
+  (default Ubuntu 26.04) and `routeros_enabled` (default `true`, so RouterOS
+  callers see no change). The Proxmox API token comes from the
+  `PROXMOX_VE_API_TOKEN` environment variable, not an input.
+- **k3s comes from k3s-bootstrap (`v0.2.0`), not cloud-init.** The controller
+  needs `uv`, `ssh-keyscan` and `flock`, and must export `ANSIBLE_SSH_ARGS` with
+  `-o UserKnownHostsFile=<known_hosts_file>`; see [`infra/README.md`](infra/README.md).
+  New edges default to Ubuntu 26.04, but an existing edge VM is **not**
+  recreated: `modules/gcp_compute_host` ignores boot-image changes, so a 24.04
+  edge keeps running its image and then fails the k3s-bootstrap v0.2.0
+  preflight (`ansible_distribution_version == '26.04'`). To move such an edge
+  to 26.04, check the plan, then replace it explicitly:
+  `terragrunt apply -replace='module.gcp_edges["pt"].google_compute_instance.this'`
+  (once per edge slug).
+- **Output contract:** `connection_data_hub` and `connection_data_edges` carry
+  `user = "garuda"` and the key **path** (`ssh_private_key_file`);
+  `ssh_private_key` is always `null`. New output `connection_data_client`. The
+  `routeros` output is `null` when `routeros_enabled = false`.
+- **`required_version` is now `>= 1.9.0`.**
+- **`modules/gcp_compute_host`:** new optional `ssh_public_key`; `instance_id`
+  is now the numeric instance id (the former self-link is `instance_self_link`);
+  `tls_private_key.admin` moves to `[0]` through a `moved` block, so state and
+  the generated key are kept.
+- `examples/mini-site/garuda` is unchanged.
+
 ## Adapting for real deployments
 
 1. Copy `inputs.tfvars.yaml.example` to `inputs.tfvars.yaml` (or your SOPS-encrypted

@@ -1,10 +1,11 @@
 terraform {
-  required_version = ">= 1.6.0"
+  # >= 1.9.0: floor imposed by the k3s-bootstrap module (v0.2.0).
+  required_version = ">= 1.9.0"
 
   required_providers {
-    yandex = {
-      source  = "registry.terraform.io/yandex-cloud/yandex"
-      version = ">= 0.130.0"
+    proxmox = {
+      source  = "bpg/proxmox"
+      version = "~> 0.115"
     }
     google = {
       source  = "hashicorp/google"

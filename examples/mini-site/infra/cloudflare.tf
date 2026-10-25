@@ -2,12 +2,15 @@ data "cloudflare_zone" "main" {
   name = var.cloudflare.zone_name
 }
 
-# hub.<base_domain> → yc_hub public IPv4. Firezone server_url uses this FQDN.
+# Every record of this unit lives under the stand base_domain (blast radius:
+# a stand must never touch records outside its own domain).
+
+# hub.<base_domain> → Proxmox hub IPv4. Firezone server_url uses this FQDN.
 resource "cloudflare_record" "hub" {
   zone_id = data.cloudflare_zone.main.id
   name    = "${var.hub_fqdn_prefix}.${var.base_domain}"
   type    = "A"
-  content = module.yc_hub.public_ipv4
+  content = var.proxmox.hub.address
   ttl     = 300
   proxied = false
   comment = "garuda: mini-site hub/Firezone"
@@ -27,23 +30,23 @@ resource "cloudflare_record" "edges" {
   comment = "garuda: mini-site edge/${each.key}"
 }
 
-# panel.<base_domain> → yc_hub public IPv4. Remnawave panel HTTPS endpoint.
+# panel.<base_domain> → Proxmox hub IPv4. Remnawave panel HTTPS endpoint.
 resource "cloudflare_record" "panel" {
   zone_id = data.cloudflare_zone.main.id
   name    = "panel.${var.base_domain}"
   type    = "A"
-  content = module.yc_hub.public_ipv4
+  content = var.proxmox.hub.address
   ttl     = 300
   proxied = false
   comment = "garuda: mini-site Remnawave panel"
 }
 
-# sub.<base_domain> → yc_hub public IPv4. Remnawave subscription endpoint.
+# sub.<base_domain> → Proxmox hub IPv4. Remnawave subscription endpoint.
 resource "cloudflare_record" "sub" {
   zone_id = data.cloudflare_zone.main.id
   name    = "sub.${var.base_domain}"
   type    = "A"
-  content = module.yc_hub.public_ipv4
+  content = var.proxmox.hub.address
   ttl     = 300
   proxied = false
   comment = "garuda: mini-site Remnawave subscription"

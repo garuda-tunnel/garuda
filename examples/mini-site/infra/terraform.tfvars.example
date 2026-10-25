@@ -4,22 +4,49 @@
 # Domains:   replace example.net with your real DNS zone.
 # IPs:       replace RFC 5737 addresses with your real public IPs / CIDRs.
 # Cloud IDs: replace placeholder IDs with your real cloud resource IDs.
-# Secrets:   routeros_password, yc_service_account_key_json, gcp_credentials_json,
-#            cloudflare_api_token are sensitive — keep them out of VCS.
+# Secrets:   routeros_password, gcp_credentials_json, cloudflare_api_token are
+#            sensitive — keep them out of VCS. The Proxmox API token is not a
+#            variable: export PROXMOX_VE_API_TOKEN before running tofu.
 
 env_slug = "mini-site"
 
-yc = {
-  cloud_id          = "my-yc-cloud-id"
-  folder_id         = "my-yc-folder-id"
-  zone              = "ru-central1-a"
-  network_id        = "my-yc-network-id"
-  primary_subnet_id = "my-yc-subnet-id"
+proxmox = {
+  endpoint      = "https://pve.example.net:8006/"
+  node_name     = "my-pve-node"
+  pool_id       = "my-pve-pool"
+  datastore_id  = "my-datastore"
+  bridge        = "vmbr1"
+  image_file_id = "local:import/ubuntu-26.04-server-cloudimg-amd64.qcow2"
+  gateway       = "203.0.113.1"
+  dns_servers   = ["192.0.2.53", "198.51.100.53"]
+  hub = {
+    address   = "203.0.113.184"
+    cores     = 2
+    memory_mb = 4096
+    disk_gb   = 40
+  }
+  client = {
+    address   = "203.0.113.185"
+    cores     = 1
+    memory_mb = 2048
+    disk_gb   = 20
+  }
 }
 
-yc_service_account_key_json = <<EOT
-{ "id": "...", "service_account_id": "...", "key_algorithm": "RSA_2048" }
-EOT
+# Stand SSH key: the public key is seeded on every VM, the private key is
+# referenced by path only (never read by this root). Write both under umask
+# 077 outside VCS, e.g. from your secrets store. known_hosts_file must be
+# absolute: the keyscan step and ANSIBLE_SSH_ARGS use it outside this module.
+ssh_public_key_file  = "/home/operator/.garuda-stand/id_ed25519.pub"
+ssh_private_key_file = "/home/operator/.garuda-stand/id_ed25519"
+known_hosts_file     = "/home/operator/.garuda-stand/known_hosts"
+
+k3s_version       = "v1.33.0+k3s1"
+cluster_cidrs     = ["10.42.0.0/16", "10.43.0.0/16"]
+api_trusted_cidrs = ["192.0.2.0/24", "198.51.100.0/24"]
+
+# GCP edges boot Ubuntu 26.04 LTS (k3s-bootstrap preflight asserts 26.04).
+# gcp_image = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2604-lts-amd64"
 
 gcp = {
   project_id = "my-gcp-project"
@@ -35,6 +62,10 @@ cloudflare = {
 
 cloudflare_api_token = "my-cloudflare-api-token"
 
+# RouterOS bootstrap is count-gated; set routeros_enabled = false for stands
+# without RouterOS (the routeros inputs may then be null).
+routeros_enabled = true
+
 routeros = {
   hostname         = "routeros-example"
   management_host  = "203.0.113.1"
@@ -43,14 +74,6 @@ routeros = {
 }
 
 routeros_password = "my-routeros-password"
-
-hub = {
-  cores            = 2
-  memory_gb        = 4
-  boot_disk_gb     = 20
-  data_disk_gb     = 20
-  existing_disk_id = null  # null = create a new caller-owned data disk; set to an existing YC disk ID to reuse without recreating it.
-}
 
 hub_fqdn_prefix = "hub"
 base_domain     = "example.net"

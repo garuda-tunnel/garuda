@@ -63,7 +63,7 @@ CIDRs configured in `modules/garuda_k8s`.
 | `modules/cert_manager`        | cert-manager (Let's Encrypt) on the hub k3s                  |
 | `modules/k8s_gateway_bootstrap` | Gateway API (Traefik IngressRoute, TLS) on the hub k3s     |
 | `modules/k3s_cloud_init`      | k3s cloud-init user-data fragment for compute provisioning   |
-| `modules/yc_compute_host`     | Provision a VM in Yandex Cloud (hub)                         |
+| `modules/yc_compute_host`     | Provision a VM in Yandex Cloud                               |
 | `modules/gcp_compute_host`    | Provision a VM in Google Cloud (edges)                       |
 
 ### Component modules (external repos, consumed via git refs)
