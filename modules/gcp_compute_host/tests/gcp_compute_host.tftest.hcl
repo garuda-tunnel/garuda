@@ -4,12 +4,13 @@
 mock_provider "google" {}
 
 variables {
-  name       = "outer"
-  project_id = "test-project"
-  region     = "us-central1"
-  zone       = "us-central1-a"
-  env_slug   = "test-env"
-  ssh_keys   = []
+  external_address = { address = "192.0.2.20", region = "us-central1", address_type = "EXTERNAL" }
+  name             = "outer"
+  project_id       = "test-project"
+  region           = "us-central1"
+  zone             = "us-central1-a"
+  env_slug         = "test-env"
+  ssh_keys         = []
 }
 
 run "contract_env_slug_required" {

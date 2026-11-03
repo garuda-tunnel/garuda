@@ -1,5 +1,5 @@
-# Tests for examples/mini-site/infra/ unit (Proxmox hub and client).
-# Validates the Proxmox hub/client VMs, per-node k3s-bootstrap wiring,
+# Tests for examples/mini-site/infra/ unit (GCP edges, Proxmox hub and client).
+# Validates GCP address migration destinations, hub/client VMs, per-node k3s wiring,
 # key-path-only connection bundles and Cloudflare DNS record scope.
 # Uses mock providers — no real cloud credentials needed. The k3s-bootstrap
 # module is overridden (its outputs are not consumed by this root).
@@ -10,6 +10,25 @@ mock_provider "cloudflare" {}
 mock_provider "routeros" {}
 mock_provider "tls" {}
 mock_provider "local" {}
+
+# Validates: The example's migrated address destinations retain the old names.
+# Code: gcp.tf::google_compute_address.edge (target of the README `tofu state mv`).
+# Assertion: Each example edge plans the same name, project, and region as before.
+# Method: Plan with mock providers; this does not seed or verify legacy state moves.
+run "edge_address_migration_destinations" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      for key, edge in var.edges :
+      google_compute_address.edge[key].name == "${module.gcp_edges[key].hostname}-ext" &&
+      google_compute_address.edge[key].region == edge.region &&
+      google_compute_address.edge[key].project == var.gcp.project_id &&
+      google_compute_address.edge[key].address_type == "EXTERNAL"
+    ])
+    error_message = "The caller-owned address must preserve the former module-owned address configuration."
+  }
+}
 
 override_module {
   target = module.k3s

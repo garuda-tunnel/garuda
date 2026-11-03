@@ -19,6 +19,13 @@ resource "google_compute_disk" "k3s_data" {
   }
 }
 
+resource "google_compute_address" "host" {
+  name         = "garuda-${var.env_slug}-k3s-ext"
+  project      = var.gcp.project_id
+  region       = var.gcp.region
+  address_type = "EXTERNAL"
+}
+
 module "k3s_init" {
   source = "../.."
 
@@ -28,13 +35,14 @@ module "k3s_init" {
 module "host" {
   source = "../../../gcp_compute_host"
 
-  name       = "k3s"
-  env_slug   = var.env_slug
-  project_id = var.gcp.project_id
-  region     = var.gcp.region
-  zone       = var.gcp.zone
-  network    = var.gcp.network
-  subnetwork = var.gcp.subnetwork
+  name             = "k3s"
+  env_slug         = var.env_slug
+  project_id       = var.gcp.project_id
+  region           = var.gcp.region
+  zone             = var.gcp.zone
+  network          = var.gcp.network
+  subnetwork       = var.gcp.subnetwork
+  external_address = google_compute_address.host
 
   ssh_keys        = var.ssh_keys
   default_ingress = true # SSH only matters; k3s API is on 127.0.0.1

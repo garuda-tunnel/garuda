@@ -4,8 +4,8 @@ output "instance_id" {
 }
 
 output "public_ipv4" {
-  description = "One-to-one NAT public IPv4 on the primary NIC; null when nat=false."
-  value       = var.nat ? yandex_compute_instance.this.network_interface[0].nat_ip_address : null
+  description = "Public IPv4 of the caller-owned external_address (one-to-one NAT on the primary NIC)."
+  value       = yandex_compute_instance.this.network_interface[0].nat_ip_address
 }
 
 output "private_ipv4" {
@@ -73,7 +73,7 @@ output "connection_data" {
   description = "Ansible/Terraform-friendly connection bundle for this host. Matches the connection_data variable type used by Linux workload modules. instance_token = yandex_compute_instance.id, used downstream as an opaque substrate-generation discriminator that forces ansible re-apply on VM recreate."
   sensitive   = true
   value = {
-    host                 = var.nat ? yandex_compute_instance.this.network_interface[0].nat_ip_address : yandex_compute_instance.this.network_interface[0].ip_address
+    host                 = yandex_compute_instance.this.network_interface[0].nat_ip_address
     user                 = var.ssh_user
     connection           = "ssh"
     network_os           = "linux"

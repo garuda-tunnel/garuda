@@ -58,6 +58,9 @@ and every bootstrap host is unknown, so the apply fails.
 
 ## Commands
 
+Edge addresses have `prevent_destroy`; see
+[GCP edge addresses](../../../docs/operations/deploy-update-destroy.md#gcp-edge-addresses) before destroying.
+
 ```bash
 # Plan
 terragrunt plan

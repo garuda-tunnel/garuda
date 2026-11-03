@@ -26,6 +26,19 @@ resource "yandex_compute_disk" "k3s_data" {
   }
 }
 
+resource "yandex_vpc_address" "host" {
+  name   = "${var.env_slug}-k3s-ext"
+  labels = local.labels
+
+  external_ipv4_address {
+    zone_id = var.yc.zone
+  }
+
+  lifecycle {
+    prevent_destroy = false # validation root is disposable
+  }
+}
+
 module "k3s_init" {
   source = "../.."
 
@@ -40,6 +53,8 @@ module "host" {
   zone       = var.yc.zone
   subnet_id  = data.yandex_vpc_subnet.primary.id
   network_id = data.yandex_vpc_network.default.id
+
+  external_address = yandex_vpc_address.host
 
   ssh_keys        = var.ssh_keys
   default_ingress = true # SSH only matters; k3s API is on 127.0.0.1

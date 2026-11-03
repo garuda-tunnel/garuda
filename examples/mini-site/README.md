@@ -92,6 +92,32 @@ changes before moving the `?ref=` to `v0.21.0`. This is a migration, not a bump:
   the generated key are kept.
 - `examples/mini-site/garuda` is unchanged.
 
+## Upgrading: caller-owned GCP addresses
+
+This upgrade requires OpenTofu 1.10.0 or newer.
+
+GCP edges now require caller-owned regional external addresses, declared in
+the example as `google_compute_address.edge` with `prevent_destroy`. **Before
+applying**, move each existing module-owned address in state, once per edge
+key (list them with `terragrunt state list | grep google_compute_address.this`):
+
+```bash
+terragrunt state mv \
+  'module.gcp_edges["<key>"].google_compute_address.this[0]' \
+  'google_compute_address.edge["<key>"]'
+```
+
+Check the plan shows no change to any `google_compute_address`. **Do not
+apply if the plan shows `forget` for a `google_compute_address`**: a missed
+move removes the legacy address from state and plans a new address of the
+same name, which fails at apply (the name exists) and leaves the old IP
+unmanaged until imported. Run the missing `state mv` and re-plan. If an
+edge previously had no static address, it needs a new or imported address. See
+the [module migration instructions](../../modules/gcp_compute_host/README.md).
+
+To keep, release or remove these addresses later, see
+[GCP edge addresses](../../docs/operations/deploy-update-destroy.md#gcp-edge-addresses).
+
 ## Adapting for real deployments
 
 1. Copy `inputs.tfvars.yaml.example` to `inputs.tfvars.yaml` (or your SOPS-encrypted

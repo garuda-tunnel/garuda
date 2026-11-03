@@ -5,6 +5,7 @@ Provisions a Linux VM in Yandex Cloud with:
 - Operator/extra ssh keys passed verbatim through metadata
 - Optional caller-owned disks attached via `attached_disks` (caller creates
   `yandex_compute_disk`; module attaches, formats on first boot, mounts)
+- Caller-owned reserved public IP (`external_address`), attached as one-to-one NAT
 - Optional security group with SSH/HTTP/HTTPS/ICMP/UDP-all ingress
 
 ## SSH key management
@@ -70,7 +71,7 @@ the OS Login profile's login as the SSH user.
 | `network_id`              | `null` (resolved from subnet)    | VPC network id; needed when default_ingress=true.                      |
 | `image_family`            | `"ubuntu-2404-lts-oslogin"`      | Image family; **must contain "oslogin"** (validated).                  |
 | `cores` / `memory_gb`     | `2` / `4`                        | vCPU count / RAM (GiB).                                                |
-| `nat`                     | `true`                           | Allocate public IPv4 via 1:1 NAT.                                      |
+| `external_address`        | _(required)_                     | Caller-owned zonal `yandex_vpc_address` (resource or data source) attached as 1:1 NAT; must be in `zone`. Changing it on a live instance is applied in place (no stop, no replacement). See "Caller-owned address" below. |
 | `ssh_user`                | `"garuda"`                       | Module-managed deploy user; auto-generated keypair binds to it.        |
 | `ssh_keys`                | _(required)_                     | List of raw `user:public_key` lines for metadata['ssh-keys']. Pass `[]` to opt into "generated admin key only" mode. Format-validated; rejects malformed entries; `null` is not allowed (`nullable = false`). |
 | `oslogin_enabled`         | `false`                          | Opt-in. When `true`, sets `metadata["enable-oslogin"]="true"` and the guest agent abandons `metadata["ssh-keys"]` in favour of OS Login profiles. Requires org-level OS Login + per-user profile + `compute.osLogin` role. |
@@ -86,22 +87,69 @@ the OS Login profile's login as the SSH user.
 | Output              | Description                                                              |
 |---------------------|--------------------------------------------------------------------------|
 | `connection_data`   | Bundle: `{host, user, ssh_private_key, connection, network_os, ...}`. Pass to Linux workload modules unchanged. The `instance_token` field carries the cloud instance id (`yandex_compute_instance.id`). Downstream consumers use it to detect VM recreation (the `instance_token` changes when the instance is replaced). |
-| `public_ipv4`       | NAT IP if `nat = true`; null otherwise.                                  |
+| `public_ipv4`       | Public IPv4 of the caller-owned `external_address`.                      |
 | `private_ipv4`      | Primary NIC private IP.                                                  |
 | `fqdn` / `hostname` | YC-assigned FQDN / configured Linux hostname.                            |
 | `instance_id`       | YC compute instance id.                                                  |
 
 ## Examples
 
+### Caller-owned address
+
+Create or import the address in the caller. It can be created in the same
+apply as the VM. The module never creates or destroys it, so it survives VM
+replacement. Keep `prevent_destroy` on it.
+
+```hcl
+resource "yandex_vpc_address" "host" {
+  name = "garuda-${var.env_slug}-host-ext"
+
+  external_ipv4_address {
+    zone_id = var.zone
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+module "vm" {
+  source           = "../yc_compute_host"
+  name             = "host"
+  env_slug         = var.env_slug
+  zone             = var.zone
+  subnet_id        = data.yandex_vpc_subnet.primary.id
+  ssh_keys         = []
+  external_address = yandex_vpc_address.host
+}
+```
+
+The module reads only `external_ipv4_address[0].address` and `.zone_id` (it
+accepts the resource or the `yandex_vpc_address` data source as is) and
+requires exactly one such block, a non-null address, and
+`zone_id == var.zone`; static addresses are zonal.
+
+Changing the address on a live instance is applied in place by the provider:
+it removes the one-to-one NAT and adds the new one on the running VM, with no
+stop and no replacement (provider source
+`yandex/resource_yandex_compute_instance.go`: `nat_ip_address` is not
+`ForceNew`; `getSpecsForAddRemoveNatNetworkInterfaces`; same in v0.130.0 and
+v0.243.0). External connectivity is briefly interrupted.
+
+The following examples assume the `yandex_vpc_address.host` above.
+
 ### Minimal
 
 ```hcl
 module "vm" {
-  source     = "../yc_compute_host"
-  name       = "frontend"
-  zone       = "ru-central1-d"
-  subnet_id  = data.yandex_vpc_subnet.primary.id
-  network_id = data.yandex_vpc_network.default.id
+  source           = "../yc_compute_host"
+  name             = "frontend"
+  env_slug         = var.env_slug
+  zone             = "ru-central1-d"
+  subnet_id        = data.yandex_vpc_subnet.primary.id
+  network_id       = data.yandex_vpc_network.default.id
+  ssh_keys         = []
+  external_address = yandex_vpc_address.host
 }
 ```
 
@@ -115,10 +163,12 @@ ssh -i <(echo "${output.connection_data.ssh_private_key}") garuda@${output.publi
 
 ```hcl
 module "vm" {
-  source     = "../yc_compute_host"
-  name       = "frontend"
-  zone       = "ru-central1-d"
-  subnet_id  = data.yandex_vpc_subnet.primary.id
+  source           = "../yc_compute_host"
+  name             = "frontend"
+  env_slug         = var.env_slug
+  zone             = "ru-central1-d"
+  subnet_id        = data.yandex_vpc_subnet.primary.id
+  external_address = yandex_vpc_address.host
 
   ssh_keys = [
     "operator:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... operator@workstation",
@@ -144,11 +194,12 @@ resource "yandex_compute_disk" "host_data" {
 }
 
 module "vm" {
-  source    = "../yc_compute_host"
-  name      = "stateful"
-  env_slug  = var.env_slug
-  subnet_id = data.yandex_vpc_subnet.primary.id
-  ssh_keys  = []
+  source           = "../yc_compute_host"
+  name             = "stateful"
+  env_slug         = var.env_slug
+  subnet_id        = data.yandex_vpc_subnet.primary.id
+  ssh_keys         = []
+  external_address = yandex_vpc_address.host
 
   attached_disks = [
     {
@@ -165,6 +216,68 @@ The compute-host module renders a `00-attached-disks.yaml` cloud-config part
 that runs `fs_setup` with `overwrite: false`, writes an `/etc/fstab` entry
 with `nofail`, and runs `mkdir -p` plus `mount -a` on first boot. On
 instance recreate (same disk, new VM) the existing filesystem is preserved.
+
+## Migration from `nat`
+
+The removed `nat` input (default `true`) gave the VM an ephemeral one-to-one
+NAT IP. It was not a Terraform resource and was lost when the VM was replaced;
+there is no module-owned address in state, so nothing to `moved`. Keep the
+current IP by reserving it and importing it into the caller (YC converts a
+dynamic address to static in place, the IP stays):
+<https://yandex.cloud/en/docs/vpc/operations/set-static-ip>.
+
+1. Find the address id (`RESERVED=false`, `USED=true`) and reserve it:
+
+   ```bash
+   yc vpc address list
+   yc vpc address update --reserved=true <address_id>
+   ```
+
+   Inactive static addresses are billed; see the Yandex Cloud VPC pricing page.
+
+2. Declare it in the caller with the same zone as the VM and import it
+   (for `for_each` callers, `to` takes an instance key, e.g.
+   `to = yandex_vpc_address.edge["k"]`):
+
+   ```hcl
+   resource "yandex_vpc_address" "host" {
+     name = "garuda-${var.env_slug}-host-ext"
+
+     external_ipv4_address {
+       zone_id = var.zone
+     }
+
+     lifecycle {
+       prevent_destroy = true
+     }
+   }
+
+   import {
+     to = yandex_vpc_address.host
+     id = "<address_id>"
+   }
+   ```
+
+3. Remove `nat` and pass `external_address = yandex_vpc_address.host`.
+
+The `external_ipv4_address` block and its `zone_id` must match the imported
+address: any change in that block forces address replacement, which
+`prevent_destroy` turns into a plan error (the safe outcome). Expect the plan
+to show `1 to import` and no change to `yandex_compute_instance`: the instance
+already has this IP in `network_interface.nat_ip_address`, so the provider sees
+no diff. If the plan shows the instance being replaced or `forces
+replacement` on the address, stop and do not apply. A `name` on the new
+resource is applied to the address in place. After the import apply, the
+`import` block can be removed.
+
+Reserve before anything that stops or replaces the VM: only static addresses
+stay attached across a VM stop (see the doc linked above), so a dynamic IP may
+be lost first. Callers with no public IP to preserve just declare a new
+address.
+
+Callers that previously set `nat = false` (internal-only VM) become public:
+the module now always attaches a public address. Review `default_ingress` /
+`ingress_ports` / `security_group_ids` before upgrading.
 
 ## Hostname & FQDN
 
@@ -207,11 +320,12 @@ empty).
 
 ```hcl
 module "vm" {
-  source    = "../yc_compute_host"
-  name      = "edge"
-  env_slug  = "example-prod"
-  subnet_id = data.yandex_vpc_subnet.primary.id
-  ssh_keys  = ["operator:${file("~/.ssh/id_ed25519.pub")}"]
+  source           = "../yc_compute_host"
+  name             = "edge"
+  env_slug         = "example-prod"
+  subnet_id        = data.yandex_vpc_subnet.primary.id
+  ssh_keys         = ["operator:${file("~/.ssh/id_ed25519.pub")}"]
+  external_address = yandex_vpc_address.host
 
   user_data_parts = [
     "#cloud-config\n${yamlencode({
@@ -252,11 +366,12 @@ empty).
 
 ```hcl
 module "vm" {
-  source    = "../yc_compute_host"
-  name      = "edge"
-  env_slug  = "example-prod"
-  subnet_id = data.yandex_vpc_subnet.primary.id
-  ssh_keys  = ["operator:${file("~/.ssh/id_ed25519.pub")}"]
+  source           = "../yc_compute_host"
+  name             = "edge"
+  env_slug         = "example-prod"
+  subnet_id        = data.yandex_vpc_subnet.primary.id
+  ssh_keys         = ["operator:${file("~/.ssh/id_ed25519.pub")}"]
+  external_address = yandex_vpc_address.host
 
   user_data_parts = [
     "#cloud-config\n${yamlencode({

@@ -4,10 +4,11 @@
 mock_provider "yandex" {}
 
 variables {
-  name      = "test_host"
-  subnet_id = "test-subnet"
-  env_slug  = "test-env"
-  ssh_keys  = []
+  name             = "test_host"
+  subnet_id        = "test-subnet"
+  env_slug         = "test-env"
+  ssh_keys         = []
+  external_address = { external_ipv4_address = [{ address = "192.0.2.20", zone_id = "ru-central1-d" }] }
 }
 
 run "zero_disks_no_user_data_metadata" {

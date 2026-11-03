@@ -115,7 +115,8 @@ resource "yandex_compute_instance" "this" {
 
   network_interface {
     subnet_id          = var.subnet_id
-    nat                = var.nat
+    nat                = true
+    nat_ip_address     = try(var.external_address.external_ipv4_address[0].address, null)
     security_group_ids = local.effective_sg_ids
   }
 
@@ -134,6 +135,23 @@ resource "yandex_compute_instance" "this" {
   # apply metadata changes on a running instance (see variables.tf).
 
   lifecycle {
+    # try() instead of ||: OpenTofu < 1.10 does not short-circuit, and a
+    # null list or element would otherwise fail as a raw index error.
+    precondition {
+      condition     = try(length(var.external_address.external_ipv4_address) == 1, false)
+      error_message = "external_address must have exactly one external_ipv4_address block; got ${jsonencode(var.external_address.external_ipv4_address)}."
+    }
+
+    precondition {
+      condition     = try(var.external_address.external_ipv4_address[0].address != null, false)
+      error_message = "external_address.external_ipv4_address[0].address must not be null."
+    }
+
+    precondition {
+      condition     = try(var.external_address.external_ipv4_address[0].zone_id == var.zone, false)
+      error_message = "external_address zone ${jsonencode(try(var.external_address.external_ipv4_address[0].zone_id, null))} must match instance zone ${jsonencode(var.zone)} (YC static addresses are zonal)."
+    }
+
     # Ignore boot-image drift. `data.yandex_compute_image` resolves the
     # *current* newest image in var.image_family at every plan; without
     # this, a routine upstream image publication in the family (e.g.

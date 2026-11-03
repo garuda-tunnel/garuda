@@ -43,9 +43,10 @@ In your `infra/` unit, provision a compute module for the new edge. Use the same
 
 ```hcl
 module "yc_compute_host_eur" {
-  source   = "../../modules/yc_compute_host"
-  env_slug = var.env_slug
-  name     = "eur"
+  source           = "../../modules/yc_compute_host"
+  env_slug         = var.env_slug
+  name             = "eur"
+  external_address = yandex_vpc_address.eur # caller-owned, with prevent_destroy
   # ... cloud-specific inputs ...
 }
 ```

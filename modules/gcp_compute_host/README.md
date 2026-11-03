@@ -46,8 +46,7 @@ not having the variable defined at all.
 | `machine_type`            | `"e2-small"`                  | GCE machine type.                                                    |
 | `image_family`            | (module default)              | Boot image family — must include `google-guest-agent`.               |
 | `image_project`           | (module default)              | Image project id (e.g. `ubuntu-os-cloud`).                           |
-| `nat`                     | `true`                        | Allocate ephemeral external IP.                                      |
-| `public_ip`               | `null`                        | Static external IP id (overrides `nat`).                             |
+| `external_address`        | _(required)_                  | Caller-owned regional external `google_compute_address` object. |
 | `ssh_user`                | `"garuda"`                    | Module-managed deploy user; seeded with `ssh_public_key` when set, otherwise with a module-generated keypair. |
 | `ssh_public_key`          | `null`                        | External public key for `ssh_user` in `user`-less OpenSSH form (`keytype keydata [comment]`). When set, no `tls_private_key` is created and `connection_data.ssh_private_key` is null — the caller connects with its own private key by path. |
 | `ssh_keys`                | _(required)_                  | List of raw `user:public_key` lines for metadata['ssh-keys']. Pass `[]` to opt into "managed deploy user key only" mode. Format-validated; rejects malformed entries; `null` is not allowed (`nullable = false`). |
@@ -65,23 +64,106 @@ not having the variable defined at all.
 | Output              | Description                                                              |
 |---------------------|--------------------------------------------------------------------------|
 | `connection_data`   | Bundle: `{host, user, ssh_private_key, connection, network_os, ...}`. The `instance_token` field carries the instance self_link (`instance_self_link`); it changes when the instance is replaced. `ssh_private_key` is null when `ssh_public_key` was set. |
-| `public_ipv4`       | External IP if `nat = true` or `public_ip` set; null otherwise.          |
+| `public_ipv4`       | External IPv4 of the caller-owned address (nat_ip).                     |
 | `private_ipv4`      | Primary NIC internal IP.                                                 |
 | `instance_id`       | Numeric GCE instance id (use as a per-generation discriminator, e.g. k3s-bootstrap `host_generation`). |
 | `instance_self_link`| GCE instance self_link URL.                                             |
 
 ## Examples
 
+The following examples use the caller-owned address declared below.
+
+### Caller-owned address
+
+Create or import the address in the caller. It can be created in the same
+apply as the VM. The module never creates or destroys it.
+
+```hcl
+resource "google_compute_address" "host" {
+  name         = "garuda-${var.env_slug}-host-ext"
+  project      = var.project_id
+  region       = var.region
+  address_type = "EXTERNAL"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+module "vm" {
+  source           = "../gcp_compute_host"
+  name             = "host"
+  env_slug         = var.env_slug
+  project_id       = var.project_id
+  region           = var.region
+  zone             = var.zone
+  ssh_keys         = []
+  external_address = google_compute_address.host
+}
+```
+
+Changing the address briefly interrupts external connectivity while the access
+config is detached and reattached. The address must be external and in the VM's
+region. Set the address region explicitly as a region name, not a self-link.
+
+### Migrating an existing module-owned address
+
+Before applying the upgrade, declare a caller-owned `google_compute_address`
+with the same name, project and region, and pass the resource as
+`external_address`. Remove `allocate_static_ip` and replace uses of the removed
+`static_ip_address_id` output with the caller's address resource ID. In the
+root module, move each existing address into its new resource address:
+
+The legacy address name is `${prefix}-${env_slug}-${replace(name, "_", "-")}-ext`
+(the default prefix is `garuda`). Set no other ForceNew arguments such as
+`description`, `network_tier`, or `ip_version`; keep `prevent_destroy`.
+List existing module-owned addresses and their keys with:
+
+```bash
+tofu state list | grep google_compute_address.this
+```
+
+```hcl
+moved {
+  from = module.vm.google_compute_address.this[0]
+  to   = google_compute_address.host
+}
+```
+
+For `for_each` modules, add a separate `moved` block with literal instance keys
+for every existing address; OpenTofu does not support `for_each` on `moved`
+blocks:
+
+```hcl
+moved {
+  from = module.vm["k"].google_compute_address.this[0]
+  to   = google_compute_address.host["k"]
+}
+```
+
+Check the plan shows a move without address replacement before applying.
+**Do not apply if the plan shows `forget` for a `google_compute_address`.** A
+forgotten `moved` block removes the legacy address from state (the IP is not
+destroyed) and plans a new `google_compute_address` of the same name, which
+fails at apply because the name exists, leaving the old IP unmanaged until it
+is imported. Add the missing `moved` block and re-plan. For deployments
+without a prior static IP, create or import one instead. VMs previously
+internal-only with `allocate_static_ip = false` become public; review
+`default_ingress` before upgrading.
+
 ### Minimal
 
 ```hcl
 module "vm" {
-  source       = "../gcp_compute_host"
-  name         = "frontend"
-  project      = var.project
-  region       = "us-central1"
-  zone         = "us-central1-a"
-  subnetwork   = data.google_compute_subnetwork.primary.id
+  source           = "../gcp_compute_host"
+  name             = "frontend"
+  env_slug         = var.env_slug
+  project_id       = var.project_id
+  region           = "us-central1"
+  zone             = "us-central1-a"
+  subnetwork       = data.google_compute_subnetwork.primary.id
+  ssh_keys         = []
+  external_address = google_compute_address.host
 }
 ```
 
@@ -89,12 +171,14 @@ module "vm" {
 
 ```hcl
 module "vm" {
-  source       = "../gcp_compute_host"
-  name         = "frontend"
-  project      = var.project
-  region       = "us-central1"
-  zone         = "us-central1-a"
-  subnetwork   = data.google_compute_subnetwork.primary.id
+  source           = "../gcp_compute_host"
+  name             = "frontend"
+  env_slug         = var.env_slug
+  project_id       = var.project_id
+  region           = "us-central1"
+  zone             = "us-central1-a"
+  subnetwork       = data.google_compute_subnetwork.primary.id
+  external_address = google_compute_address.host
 
   ssh_keys = [
     "operator:ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... operator@workstation",
@@ -118,14 +202,15 @@ resource "google_compute_disk" "host_data" {
 }
 
 module "vm" {
-  source     = "../gcp_compute_host"
-  name       = "stateful"
-  env_slug   = var.env_slug
-  project    = var.project_id
-  region     = var.region
-  zone       = var.zone
-  subnetwork = data.google_compute_subnetwork.primary.id
-  ssh_keys   = []
+  source           = "../gcp_compute_host"
+  name             = "stateful"
+  env_slug         = var.env_slug
+  project_id       = var.project_id
+  region           = var.region
+  zone             = var.zone
+  subnetwork       = data.google_compute_subnetwork.primary.id
+  ssh_keys         = []
+  external_address = google_compute_address.host
 
   attached_disks = [
     {
@@ -179,14 +264,15 @@ empty).
 
 ```hcl
 module "vm" {
-  source     = "../gcp_compute_host"
-  name       = "edge"
-  env_slug   = "example-prod"
-  project    = var.project
-  region     = "us-central1"
-  zone       = "us-central1-a"
-  subnetwork = data.google_compute_subnetwork.primary.id
-  ssh_keys   = ["operator:${file("~/.ssh/id_ed25519.pub")}"]
+  source           = "../gcp_compute_host"
+  name             = "edge"
+  env_slug         = "example-prod"
+  project_id       = var.project_id
+  region           = "us-central1"
+  zone             = "us-central1-a"
+  subnetwork       = data.google_compute_subnetwork.primary.id
+  ssh_keys         = ["operator:${file("~/.ssh/id_ed25519.pub")}"]
+  external_address = google_compute_address.host
 
   user_data_parts = [
     "#cloud-config\n${yamlencode({

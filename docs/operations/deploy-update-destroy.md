@@ -62,6 +62,22 @@ tofu -chdir=examples/mini-site/garuda apply
 
 ## Destroy
 
+### GCP edge addresses
+
+The infra unit creates one `google_compute_address.edge[<key>]` per edge with
+`prevent_destroy`, so it survives VM replacement but blocks destroying the unit
+and removing an edge key. Pick one:
+
+- Keep the IP of one edge: `tofu state rm 'google_compute_address.edge["<key>"]'`,
+  then remove the edge key.
+- Keep all IPs when destroying the unit: `tofu state rm 'google_compute_address.edge'`,
+  then destroy. The addresses stay in GCP; import them to reuse them.
+- Release an IP: deliberately remove `prevent_destroy`, then destroy it.
+
+An address removed from state but still in the configuration is created again
+under the same name by the next apply, which fails because the name exists.
+Import it back instead.
+
 Destroy in reverse unit order:
 
 ```bash

@@ -1,5 +1,6 @@
 terraform {
-  required_version = ">= 1.6.0"
+  # removed.lifecycle support: https://github.com/opentofu/opentofu/blob/v1.10.0/CHANGELOG.md
+  required_version = ">= 1.10.0"
   required_providers {
     google = {
       source  = "hashicorp/google"

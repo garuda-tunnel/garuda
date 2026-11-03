@@ -125,10 +125,28 @@ variable "boot_disk_type" {
   default     = "network-ssd"
 }
 
-variable "nat" {
-  description = "Allocate public IPv4 via one-to-one NAT on primary NIC."
-  type        = bool
-  default     = true
+variable "external_address" {
+  description = <<EOT
+Caller-owned zonal external address, attached to the primary NIC as one-to-one
+NAT. Pass a `yandex_vpc_address` resource or data source directly; the module
+reads only `external_ipv4_address[0].{address, zone_id}` and never creates or
+destroys the address, so it survives instance replacement. The address must be
+in `var.zone`.
+
+Changing it on a live instance is applied in place by the provider
+(RemoveOneToOneNat + AddOneToOneNat on the running VM, no stop, no
+replacement); the old public IP is released from the VM and external
+connectivity is briefly interrupted. Verified in the yandex provider
+(`yandex/resource_yandex_compute_instance.go`: `nat_ip_address` is not
+ForceNew; `getSpecsForAddRemoveNatNetworkInterfaces`), v0.130.0 - v0.243.0.
+EOT
+  type = object({
+    external_ipv4_address = list(object({
+      address = string
+      zone_id = string
+    }))
+  })
+  nullable = false
 }
 
 variable "ssh_user" {

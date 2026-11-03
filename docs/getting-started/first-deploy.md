@@ -107,6 +107,9 @@ upgraded in place; Kubernetes resources are patched.
 
 ## Destroy
 
+Edge addresses have `prevent_destroy`; see
+[GCP edge addresses](../operations/deploy-update-destroy.md#gcp-edge-addresses) before destroying.
+
 Destroy in reverse order:
 
 ```bash

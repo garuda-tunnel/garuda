@@ -16,12 +16,15 @@ moved {
   to   = tls_private_key.admin[0]
 }
 
-# Optional regional static IP
-resource "google_compute_address" "this" {
-  count   = var.allocate_static_ip ? 1 : 0
-  name    = "${local.instance_name}-ext"
-  region  = var.region
-  project = var.project_id
+# Migration guard: a caller that forgets to move the legacy module-owned
+# address gets "forget" instead of destroy, so the IP survives.
+# TODO(2026-11-10): remove this block and lower required_version back to
+# >= 1.6.0 once all callers have migrated.
+removed {
+  from = google_compute_address.this
+  lifecycle {
+    destroy = false
+  }
 }
 
 # Firewall (module-managed). Created only when default_ingress or
@@ -80,11 +83,8 @@ resource "google_compute_instance" "this" {
     network    = var.network
     subnetwork = var.subnetwork
 
-    dynamic "access_config" {
-      for_each = var.allocate_static_ip ? [1] : []
-      content {
-        nat_ip = var.allocate_static_ip ? google_compute_address.this[0].address : null
-      }
+    access_config {
+      nat_ip = var.external_address.address
     }
   }
 
@@ -98,6 +98,21 @@ resource "google_compute_instance" "this" {
   # on a running instance (see variables.tf).
 
   lifecycle {
+    precondition {
+      condition     = var.external_address.address != null
+      error_message = "external_address.address must not be null; got ${jsonencode(var.external_address.address)}."
+    }
+
+    precondition {
+      condition     = var.external_address.region == var.region
+      error_message = "external_address.region ${jsonencode(var.external_address.region)} must match instance region ${jsonencode(var.region)}."
+    }
+
+    precondition {
+      condition     = var.external_address.address_type == "EXTERNAL"
+      error_message = "external_address.address_type must be EXTERNAL; got ${jsonencode(var.external_address.address_type)}."
+    }
+
     # Ignore boot-image drift. Callers typically pass an image *family*
     # URL (e.g. projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts)
     # into var.image; GCE resolves that to the newest concrete image at
@@ -113,4 +128,3 @@ resource "google_compute_instance" "this" {
     ignore_changes = [boot_disk[0].initialize_params[0].image]
   }
 }
-

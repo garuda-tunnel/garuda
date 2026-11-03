@@ -4,10 +4,11 @@
 mock_provider "yandex" {}
 
 variables {
-  name      = "test_host"
-  subnet_id = "test-subnet"
-  env_slug  = "test-env"
-  ssh_keys  = []
+  name             = "test_host"
+  subnet_id        = "test-subnet"
+  env_slug         = "test-env"
+  ssh_keys         = []
+  external_address = { external_ipv4_address = [{ address = "192.0.2.20", zone_id = "ru-central1-d" }] }
 }
 
 run "contract_env_slug_required" {
@@ -160,19 +161,6 @@ run "contract_connection_data_output_shape" {
   assert {
     condition     = output.connection_data.ssh_private_key_file == null
     error_message = "connection_data.ssh_private_key_file must be null (module does not persist a file)"
-  }
-}
-
-run "contract_connection_data_host_uses_private_ip_when_no_nat" {
-  command = plan
-
-  variables {
-    nat = false
-  }
-
-  assert {
-    condition     = output.connection_data.host == yandex_compute_instance.this.network_interface[0].ip_address
-    error_message = "With nat=false, connection_data.host must fall back to private IP"
   }
 }
 

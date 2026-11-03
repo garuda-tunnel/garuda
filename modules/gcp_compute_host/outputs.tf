@@ -68,11 +68,6 @@ output "boot_disk_source" {
   value       = google_compute_instance.this.boot_disk[0].source
 }
 
-output "static_ip_address_id" {
-  description = "Id of the module-managed google_compute_address; null when allocate_static_ip=false."
-  value       = try(google_compute_address.this[0].id, null)
-}
-
 output "ssh_private_key_openssh" {
   description = "OpenSSH-formatted private key for the module-managed user. Null when ssh_public_key is set (caller-owned key)."
   value       = one(tls_private_key.admin[*].private_key_openssh)

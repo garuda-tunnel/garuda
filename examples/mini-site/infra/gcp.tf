@@ -1,3 +1,15 @@
+resource "google_compute_address" "edge" {
+  for_each     = var.edges
+  name         = "garuda-${var.env_slug}-${replace(each.key, "_", "-")}-ext"
+  project      = var.gcp.project_id
+  region       = each.value.region
+  address_type = "EXTERNAL"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 module "gcp_edges" {
   for_each = var.edges
 
@@ -22,7 +34,7 @@ module "gcp_edges" {
   ssh_user       = "ubuntu"
   ssh_public_key = local.stand_public_key
 
-  allocate_static_ip = true
+  external_address = google_compute_address.edge[each.key]
 
   # default_ingress opens TCP 22/80/443, UDP 0-65535, ICMP — covers WireGuard.
   default_ingress = true

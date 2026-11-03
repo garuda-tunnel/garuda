@@ -40,7 +40,7 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "GCP region (e.g. us-central1). Used for google_compute_address."
+  description = "GCP region of the instance; external_address must be in this region."
   type        = string
 }
 
@@ -169,10 +169,14 @@ variable "tags" {
   default     = []
 }
 
-variable "allocate_static_ip" {
-  description = "Create a regional google_compute_address and attach as external IP."
-  type        = bool
-  default     = true
+variable "external_address" {
+  description = <<EOT
+Caller-owned regional external address. The module never creates or destroys it.
+Changing it on a live instance detaches and reattaches the access config in
+place, briefly interrupting external IP connectivity.
+EOT
+  type        = object({ address = string, region = string, address_type = string })
+  nullable    = false
 }
 
 variable "default_ingress" {
@@ -297,5 +301,3 @@ EOT
     error_message = "Each user_data_parts element must start with '#cloud-config' header (cloud-init format identifier)."
   }
 }
-
-

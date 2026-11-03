@@ -1,6 +1,6 @@
 terraform {
-  # >= 1.9.0: floor imposed by the k3s-bootstrap module (v0.2.0).
-  required_version = ">= 1.9.0"
+  # The compute-host module requires removed.lifecycle support (OpenTofu 1.10).
+  required_version = ">= 1.10.0"
 
   required_providers {
     proxmox = {
