@@ -77,9 +77,9 @@ This deploys in dependency order:
 5. `firezone/kube` and `ipt_server/kube` on hub.
 6. `border_router` on hub.
 
-**Note on Firezone OIDC.** OIDC providers are reconciled automatically by the
-`oidc-reconcile` sidecar in the `firezone/kube` module on every apply and pod
-recreation — no second apply is needed.
+**Note on Firezone OIDC.** OIDC providers are reconciled automatically on every
+apply and pod recreation — no second apply is needed (see the
+[firezone repo](https://github.com/garuda-tunnel/firezone)).
 
 Expected: all workloads are running. OSPF adjacencies are up. WireGuard tunnels
 are active. Firezone is reachable at the configured FQDN with a valid TLS cert.

@@ -247,4 +247,4 @@ Pick the smallest action that unblocks:
 - Completeness: `docs/artifacts/2026-06-16-subproject-d-completeness.md`
 - Task 0 validation: `docs/artifacts/2026-06-16-subproject-d-task0-validation.md`
 - Research: `<stand-name>/docs/artifacts/2026-06-13-multus-attach-race-research.md` (operator's private stand repo)
-- Related operator runbook (orthogonal): `docs/operations/operator-runbook-fz-client-handshake.md`
+- Related operator runbook (orthogonal): [Firezone client stale handshake runbook](https://github.com/garuda-tunnel/firezone/blob/main/docs/operations/operator-runbook-fz-client-handshake.md)

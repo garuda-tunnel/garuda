@@ -7,8 +7,7 @@
 | OSPF neighbor does not come up                   | `kubectl -n garuda exec <pod> -c frr-sidecar -- vtysh -c 'show ip ospf neighbor'`       |
 | Transit route missing on a consumer              | `kubectl -n garuda exec <pod> -c <container> -- ip route show table 201`                 |
 | WireGuard tunnel is down                         | `kubectl -n garuda exec <wg-pod> -c wg -- wg show`                                      |
-| Firezone OIDC not reconciled / sidecar not Ready | `kubectl -n garuda logs <firezone-pod> -c oidc-reconcile` — expect "reconcile applied" → "minted token deleted" → "idling"; if not Ready, `/tmp/oidc-reconcile-ok` was not written |
-| Firezone API or web UI not responding            | `kubectl -n garuda logs <firezone-pod> -c firezone`; check `fz_admin` credentials       |
+| Firezone OIDC, API or web UI problem             | See the [firezone repo](https://github.com/garuda-tunnel/firezone) |
 | RouterOS cannot reach WireGuard tunnel endpoint  | Re-apply the `garuda/` unit — see [RouterOS DHCP drift](#routeros-dhcp-drift)            |
 | `ipt_server` geo/domain routing not working      | `kubectl -n garuda logs <ipt-server-pod> -c ipt-server`; check `routes` config          |
 | `ipt_server` pinning not engaging                | Check `pinning_egress` is non-empty; verify client source IP routing                     |
@@ -54,13 +53,8 @@ kubectl -n garuda exec <ipt-server-pod> -c ipt-server -- nft list ruleset
 
 ## Firezone
 
-```bash
-# Firezone pod logs
-kubectl -n garuda logs <firezone-pod> -c firezone
-
-# OIDC reconcile sidecar (expected sequence: applied -> token deleted -> idling)
-kubectl -n garuda logs <firezone-pod> -c oidc-reconcile
-```
+Firezone troubleshooting lives in the
+[firezone repo](https://github.com/garuda-tunnel/firezone/blob/main/docs/operations/troubleshooting.md).
 
 ## RouterOS DHCP drift
 

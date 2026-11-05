@@ -97,7 +97,7 @@ resource "terraform_data" "known_hosts" {
 
 module "k3s" {
   for_each   = local.k3s_nodes
-  source     = "git::https://github.com/garuda-tunnel/k3s-bootstrap-internal.git?ref=v0.2.0"
+  source     = "git::https://github.com/garuda-tunnel/k3s-bootstrap.git?ref=v0.2.0"
   depends_on = [terraform_data.known_hosts]
 
   node_type            = "initial"

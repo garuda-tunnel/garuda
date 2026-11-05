@@ -28,7 +28,7 @@ QUIC keeps working over a consistent MTU + transiting ICMP PTB.
 | Layer | Node(s) | Mechanism | Direction(s) |
 |---|---|---|---|
 | **WG pods** | `wg-hub-ros`, `wg-usa`, `wg-mexico`, both edge VMs | `postup.sh`: `oifname` clamp-to-pmtu (`rt mtu`) + `iifname` fixed MSS (`WG_FIXED_MSS`, chart-injected), gated on `WG_MSS_CLAMP_ENABLED`, in `table inet border_<iface>` | `oifname` = load-bearing return on the last WG hop; `iifname` = inbound-initiated defense |
-| **firezone sidecar** | `firezone` (`wg-firezone`) | idempotent, readiness-gated NET_ADMIN sidecar installs **both** `oifname wg-firezone` clamp-to-pmtu (1280⇒MSS 1240, load-bearing Chain-B return) AND `iifname wg-firezone` fixed MSS 1240, in `table inet firezone_mss` (never edits `table inet firezone`) | both |
+| **firezone sidecar** | `firezone` (`wg-firezone`) | chart-owned `mss-clamp` sidecar; load-bearing Chain-B return clamp. Details: [Firezone MSS clamp runbook](https://github.com/garuda-tunnel/firezone/blob/main/docs/operations/operator-runbook-mss-clamp.md) | both |
 | **ipt-server central** | `ipt-server` (`backbone`) | `table inet ipt_server_mss`, fixed MSS 1240 on `iifname`+`oifname backbone` | **forward only** (return is asymmetric — bypasses ipt-server, see §1 note) |
 | **border-router** | `border-router` (`backbone`) | `egress-setup` init container installs `table inet border_mss`, fixed MSS on `iifname`+`oifname backbone`, gated on `BR_MSS_CLAMP_ENABLED` | both, RU egress |
 | **RouterOS** | RouterOS own tunnel `wg-hub-ros` (module); `wg_tik` only via operator CLI handoff (§4) | `change-mss new-mss=clamp-to-pmtu` mangle on `in-interface` + `out-interface` (PMTU per-flow) | bidirectional |
@@ -97,8 +97,6 @@ egress** (RU border / USA / Mexico) and in **both** directions.
 ```bash
 # ipt-server central forward clamp (dedicated inet table):
 sudo kubectl -n garuda exec deploy/ipt-server -c ipt-server -- nft list table inet ipt_server_mss
-# firezone load-bearing Chain-B return clamp:
-sudo kubectl -n garuda exec deploy/firezone   -c mss-clamp   -- nft list table inet firezone_mss
 # each WG pod (oifname rt mtu + iifname fixed MSS):
 sudo kubectl -n garuda exec deploy/wg-hub-ros -c wg -- nft list table inet border_wg-hub-ros
 sudo kubectl -n garuda exec deploy/wg-usa     -c wg -- nft list table inet border_wg-usa
@@ -117,13 +115,10 @@ counters are non-zero on an active stand (run some TCP traffic first).
 ss -ti | grep -A1 ESTAB | grep -oE 'mss:[0-9]+|rcv_mss:[0-9]+|advmss:[0-9]+'
 ```
 
-### 3.3 firezone sidecar readiness gate
+### 3.3 firezone sidecar
 
-```bash
-# Ready flag exists (gates firezone readiness) and firezone pod is Ready:
-sudo kubectl -n garuda exec deploy/firezone -c mss-clamp -- test -f /var/lib/clamp/ready && echo READY-FLAG-OK
-sudo kubectl -n garuda get pod -l app.kubernetes.io/name=firezone -o wide
-```
+Verify the Chain-B return clamp and the readiness gate per the
+[Firezone MSS clamp runbook](https://github.com/garuda-tunnel/firezone/blob/main/docs/operations/operator-runbook-mss-clamp.md).
 
 ### 3.4 ICMP PTB still transits (regression guard for PMTUD/QUIC)
 
@@ -231,7 +226,7 @@ Per-layer off-switches (pick the smallest action that unblocks):
 |---|---|
 | ipt-server | `--set mtuPolicy.mssClampEnabled=false` |
 | border-router | `--set mtuPolicy.mssClampEnabled=false` |
-| firezone | `--set mtuPolicy.mssClampEnabled=false` (removes iifname fixed-MSS rule; oifname route-PMTU clamp remains) |
+| firezone | See the [Firezone MSS clamp runbook](https://github.com/garuda-tunnel/firezone/blob/main/docs/operations/operator-runbook-mss-clamp.md) |
 | wireguard postup | `--set mtuPolicy.mssClampEnabled=false` disables the `iifname` fixed-MSS rule; the `oifname` route-PMTU clamp is always present |
 | RouterOS `wg_tik` | delete the manually-added mangle rules (`/ip firewall mangle remove [find comment~"garuda-wg_tik"]`) |
 | MTU alignment | revert `mtuPolicy.effectiveMtu` in the wireguard chart and `var.mtu_policy.effective_mtu` in the RouterOS module to the prior value |

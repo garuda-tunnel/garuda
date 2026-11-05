@@ -73,7 +73,7 @@ CIDRs configured in `modules/garuda_k8s`.
 | `wireguard/tunnel`      | `git::https://github.com/garuda-tunnel/wireguard.git//tunnel?ref=v0.2.0` | WireGuard key generation and per-peer config            |
 | `wireguard/kube`        | `git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v0.2.0`   | WireGuard deployment on k3s (Kubernetes)                |
 | `wireguard/routeros`    | `git::https://github.com/garuda-tunnel/wireguard.git//routeros?ref=v0.2.0` | RouterOS WireGuard tunnel, endpoint bypass, and OSPF |
-| `firezone/kube`         | `git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v0.2.0`   | Firezone deployment on the hub k3s                      |
+| `firezone/kube`         | [`garuda-tunnel/firezone`](https://github.com/garuda-tunnel/firezone) (`//kube`)                              | Firezone deployment on the hub k3s                      |
 | `ipt_server/kube`       | `git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.1.0`     | ipt_server + PowerDNS deployment on the hub k3s         |
 | `border_router`         | `git::https://github.com/garuda-tunnel/border-router.git?ref=v0.1.0`    | Border egress pod — dummy0 /32 advertised via OSPF      |
 
@@ -111,8 +111,9 @@ RouterOS resource names.
 
 Modules creating only cluster-local resources do not declare `env_slug` — their
 namespace is already scoped by the k3s cluster identity. This includes
-`wireguard/kube`, `ipt_server/kube`, `firezone/kube`, `border_router`,
-`garuda_k8s`, `cert_manager`, and `k8s_gateway_bootstrap`.
+`wireguard/kube`, `ipt_server/kube`, `border_router`, `garuda_k8s`,
+`cert_manager`, and `k8s_gateway_bootstrap`. The Firezone module follows the same
+rule; see the [firezone repo](https://github.com/garuda-tunnel/firezone).
 
 `env_slug` is mandatory: 2–24 chars, lowercase alphanumerics and hyphens. Two
 stacks must pick different slugs to coexist on shared substrate.

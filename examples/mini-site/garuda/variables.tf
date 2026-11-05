@@ -230,6 +230,17 @@ variable "firezone_admin_password" {
   type      = string
   sensitive = true
 }
+variable "firezone_wireguard_private_key" {
+  description = <<-EOT
+    Firezone WireGuard server private key (`wg genkey` output, clamped base64).
+    Comes from secrets.sops.yaml, generated once with `wg genkey`; losing it
+    invalidates every issued client config. Upgrading an existing site: see the
+    firezone README "Migrating from 1.x".
+  EOT
+  type        = string
+  sensitive   = true
+  nullable    = false
+}
 variable "firezone_admin_email" {
   description = "Initial Firezone admin email used by the firezone module."
   type        = string

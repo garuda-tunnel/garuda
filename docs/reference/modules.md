@@ -52,7 +52,7 @@ These modules live in external component repositories and are consumed via git r
 
 | Module             | Source                                                                        | Purpose                                                    | README                                                                                       |
 |--------------------|-------------------------------------------------------------------------------|------------------------------------------------------------|----------------------------------------------------------------------------------------------|
-| `firezone/kube`    | `git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v0.2.0`       | Firezone deployment on the hub k3s                         | [README](https://github.com/garuda-tunnel/firezone/blob/main/kube/README.md)               |
+| `firezone/kube`    | [`garuda-tunnel/firezone`](https://github.com/garuda-tunnel/firezone) (`//kube`)                                  | Firezone deployment on the hub k3s                         | [README](https://github.com/garuda-tunnel/firezone/blob/main/kube/README.md)               |
 | `ipt_server/kube`  | `git::https://github.com/garuda-tunnel/router.git//kube?ref=v0.1.0`         | ipt_server + PowerDNS deployment on the hub k3s            | [README](https://github.com/garuda-tunnel/router/blob/main/kube/README.md)                 |
 | `border_router`    | `git::https://github.com/garuda-tunnel/border-router.git?ref=v0.1.0`        | Border egress pod — dummy0 /32 advertised via OSPF         | [README](https://github.com/garuda-tunnel/border-router/blob/main/README.md)               |
 

@@ -47,6 +47,7 @@ variables {
   ipt_routes_germany_nets = []
 
   firezone_admin_password            = "test-password"
+  firezone_wireguard_private_key     = "cAdtCnMYpX08FsFyUbJmRd9ML4frwJkqsXf7pR25LGo=" # RFC 7748 test vector
   firezone_oidc_google_client_id     = null
   firezone_oidc_google_client_secret = null
 }

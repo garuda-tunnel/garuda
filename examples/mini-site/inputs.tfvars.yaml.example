@@ -108,6 +108,8 @@ routeros_enabled: true
 # Sensitive values — supply via SOPS-encrypted secrets.sops.yaml in your wrapper.
 routeros_password: "REPLACE_WITH_SOPS_SECRET"
 firezone_admin_password: "REPLACE_WITH_SOPS_SECRET"
+# Generated once with `wg genkey`; losing it invalidates every issued client config.
+firezone_wireguard_private_key: "REPLACE_WITH_SOPS_SECRET"
 firezone_oidc_google_client_id: "my-oidc-client-id.apps.googleusercontent.com"
 firezone_oidc_google_client_secret: "REPLACE_WITH_SOPS_SECRET"
 

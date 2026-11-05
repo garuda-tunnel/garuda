@@ -12,9 +12,9 @@ modules. This replaces the Docker label taxonomy used in the pre-k3s era.
 
 ## ospf object
 
-The `ospf` variable is accepted by `wireguard/kube`, `firezone/kube`,
-`ipt_server/kube`, and `border_router`. When `null` or absent, no FRR sidecar is
-rendered.
+The `ospf` variable is accepted by `wireguard/kube`, `ipt_server/kube`, and
+`border_router`. When `null` or absent, no FRR sidecar is rendered.
+(The Firezone module has no FRR sidecar; see its [README](https://github.com/garuda-tunnel/firezone).)
 
 | Field                | Type            | Required | Description                                              |
 |----------------------|-----------------|----------|----------------------------------------------------------|
@@ -30,8 +30,7 @@ rendered.
 ## transit object
 
 The `transit` variable is accepted by workload modules that route user traffic
-through `ipt_server` (e.g. `firezone/kube`, `wireguard/kube` for the RouterOS
-tunnel).
+through `ipt_server` (e.g. `wireguard/kube` for the RouterOS tunnel).
 
 | Field        | Type         | Description                                                                |
 |--------------|--------------|----------------------------------------------------------------------------|
@@ -68,20 +67,9 @@ ospf = {
 }
 ```
 
-### Firezone (transit consumer)
+### Firezone
 
-```hcl
-ospf = {
-  router_id          = "192.0.2.20"
-  interfaces         = ["backbone", "wg-firezone"]
-  passive_interfaces = ["wg-firezone"]
-  default_originate  = false
-  redistribute       = ["connected", "kernel"]
-}
-transit = {
-  interfaces = ["wg-firezone"]
-}
-```
+Has no FRR sidecar and ignores `ospf` and `transit`; see the [firezone repo](https://github.com/garuda-tunnel/firezone).
 
 ### ipt_server (transit provider)
 

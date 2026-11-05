@@ -57,3 +57,8 @@ output "remnawave_node_ospf_router_id" {
   description = "Stable advertised /32 for Remnawave node pinning."
   value       = one(module.remnawave_panel[*].node_ospf_router_id)
 }
+
+output "firezone_wireguard_public_key" {
+  description = "Firezone WireGuard server public key (what client configs embed)."
+  value       = module.firezone_kube.wireguard_public_key
+}

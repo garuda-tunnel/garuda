@@ -2,7 +2,7 @@
 
 This Terragrunt unit provisions infrastructure and exports the connection facts
 that the `garuda/` unit consumes: a hub and an idle test-client VM on Proxmox VE,
-two GCP edge VMs, k3s via [k3s-bootstrap](https://github.com/garuda-tunnel/k3s-bootstrap-internal)
+two GCP edge VMs, k3s via [k3s-bootstrap](https://github.com/garuda-tunnel/k3s-bootstrap)
 on the hub and edges, and the stand's Cloudflare DNS records.
 
 ## Responsibilities

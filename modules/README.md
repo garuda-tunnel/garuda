@@ -8,7 +8,7 @@ away from Ansible roles as the home for workload images and config.
 
 New **kube-only** modules live at `modules/<name>/` with **no `/kube` suffix**.
 Precedents: `cert_manager/`, `k8s_gateway_bootstrap/`, `frr-sidecar/`,
-`border_router/`. Legacy `*/kube` modules (`ipt_server/kube`, `firezone/kube`,
+`border_router/`. Legacy `*/kube` modules (`ipt_server/kube`,
 `wireguard/kube`) keep their suffix until separately refactored — they carry it
 only because they once had compose-era `*/linux` siblings.
 

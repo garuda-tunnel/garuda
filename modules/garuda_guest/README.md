@@ -64,7 +64,7 @@ module "wg_hub_ros_guest" {
 }
 
 module "wireguard" {
-  source = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=main"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.0"
 
   # ... workload-specific vars ...
 

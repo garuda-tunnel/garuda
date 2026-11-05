@@ -3,7 +3,8 @@
 # Run infra first; then populate connection_data_* and cloudflare_* from
 # infra outputs (tofu -chdir=../infra output -json > infra-outputs.tfvars.json).
 #
-# Sensitive values (routeros_password, firezone_admin_password, OIDC secrets)
+# Sensitive values (routeros_password, firezone_admin_password,
+# firezone_wireguard_private_key, OIDC secrets)
 # must not be stored in VCS. Use environment variables or a secrets manager.
 
 env_slug = "mini-site"
@@ -119,5 +120,6 @@ border_router = {
 ipt_routes_germany_nets = []
 
 firezone_admin_password            = "my-firezone-admin-password"
+firezone_wireguard_private_key     = "REPLACE_WITH_wg_genkey_OUTPUT"
 firezone_oidc_google_client_id     = "my-oidc-client-id.apps.googleusercontent.com"
 firezone_oidc_google_client_secret = "my-oidc-client-secret"

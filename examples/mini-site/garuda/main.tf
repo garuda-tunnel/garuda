@@ -78,7 +78,7 @@ module "garuda_guest_wireguard_kube_edge" {
 
 module "wireguard_kube_edge" {
   for_each = var.edges
-  source   = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.0"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
   chart_version = "2.0.0"
 
@@ -128,7 +128,7 @@ module "wireguard_tunnel_hub_ros" {
 
 module "wireguard_routeros_hub_ros" {
   count  = var.routeros_enabled ? 1 : 0
-  source = "git::https://github.com/garuda-tunnel/wireguard-internal.git//routeros?ref=v2.0.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//routeros?ref=v2.0.0"
 
   hostname       = var.routeros.hostname
   self           = module.wireguard_tunnel_hub_ros[0].peers["edge"]
@@ -200,7 +200,7 @@ module "garuda_guest_wireguard_kube_hub" {
 
 module "wireguard_kube_hub" {
   for_each = var.edges
-  source   = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.0"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
   chart_version = "2.0.0"
 
@@ -243,7 +243,7 @@ module "garuda_guest_wireguard_kube_hub_ros" {
 
 module "wireguard_kube_hub_ros" {
   count  = var.routeros_enabled ? 1 : 0
-  source = "git::https://github.com/garuda-tunnel/wireguard-internal.git//kube?ref=v2.0.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.0"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
   chart_version = "2.0.0"
 
@@ -384,7 +384,7 @@ module "remnawave_panel" {
   # front, Chrome fingerprint). The module's dest is a Cloudflare anycast IP
   # whose ServerHello+Certificate chain fits under REALITY's hardcoded 8192-byte
   # s2c buffer (a microsoft.com dest overflows it and the handshake aborts —
-  # validated live 2026-07-10, see remnawave-internal PR #7 for the artifact).
+  # validated live 2026-07-10).
   node_pod_annotations = module.garuda_guest_remnawave_node[0].annotations
   node_pod_labels      = module.garuda_guest_remnawave_node[0].labels
 
@@ -413,9 +413,9 @@ module "garuda_guest_firezone_kube" {
 # --- Firezone (hub, k8s) ---
 
 module "firezone_kube" {
-  source = "git::https://github.com/garuda-tunnel/firezone-internal.git//kube?ref=v1.2.0"
+  source = "git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v2.0.1"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/firezone
-  chart_version = "1.2.0"
+  chart_version = "2.0.1"
 
   providers = {
     helm       = helm.hub
@@ -439,7 +439,8 @@ module "firezone_kube" {
   configmaps  = module.garuda_guest_firezone_kube.configmaps
   ospf        = null
 
-  encryption_secrets = var.firezone_encryption_secrets
+  encryption_secrets    = var.firezone_encryption_secrets
+  wireguard_private_key = var.firezone_wireguard_private_key
 
   oidc_providers = local.firezone_oidc_providers
 
@@ -464,7 +465,7 @@ module "garuda_guest_ipt_server_kube" {
 # --- ipt_server (hub, k8s) ---
 
 module "ipt_server_kube" {
-  source = "git::https://github.com/garuda-tunnel/router-internal.git//kube?ref=v1.4.2"
+  source = "git::https://github.com/garuda-tunnel/router.git//kube?ref=v1.4.2"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/ipt-server
   chart_version = "1.4.2"
 
@@ -476,7 +477,7 @@ module "ipt_server_kube" {
   namespace        = module.garuda_k8s_hub.namespace
   ipt_server_image = var.ipt_server_image
   powerdns_image   = var.ipt_powerdns_image
-  # Raw PowerDNS Recursor YAML drop-in (router-internal >= v1.3.0); "" adds nothing.
+  # Raw PowerDNS Recursor YAML drop-in (router >= v1.3.0); "" adds nothing.
   powerdns_extra_config = var.ipt_powerdns_extra_config
   routes                = local.ipt_routes
   nic_attach            = ["backbone"]
@@ -517,7 +518,7 @@ module "garuda_guest_border_router" {
 # border gateway, masquerade) so ipt_server can route RU/local traffic to it via
 # gw=<router_id> instead of the broken gateway-less dev=border nexthop.
 module "border_router" {
-  source = "git::https://github.com/garuda-tunnel/border-router-internal.git?ref=v1.2.0"
+  source = "git::https://github.com/garuda-tunnel/border-router.git?ref=v1.2.0"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/border-router
   chart_version = "1.2.0"
 

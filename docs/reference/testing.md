@@ -32,16 +32,6 @@ k3s cluster, or a running `garuda-tunnel`. They verify:
 - Wiring logic (e.g. `examples/mini-site/garuda` wires the correct modules with
   the correct provider aliases for hub and each edge).
 
-## Python unit tests
-
-Unit tests for the pure-Python helpers live next to the module they test (there
-is no shared pytest configuration; each suite is self-contained):
-
-```bash
-# Local-stand helper (examples/local-stand/ansible/files/firezone_device.py)
-pytest -q examples/local-stand/ansible/tests/test_firezone_device.py
-```
-
 ## Helm golden tests
 
 Charts that ship with golden manifests validate rendering with:

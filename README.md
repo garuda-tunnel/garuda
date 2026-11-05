@@ -79,9 +79,8 @@ terragrunt plan -detailed-exitcode   # 0 = the apply left no drift
 End-to-end tests live in the local stand only:
 [`examples/local-stand/e2e/README.md`](examples/local-stand/e2e/README.md).
 
-Firezone OIDC providers are reconciled automatically by the in-pod
-`oidc-reconcile` sidecar (`modules/firezone/kube`) on every apply — no
-second apply or manual step is needed.
+Firezone OIDC providers are reconciled automatically on every apply — no
+second apply or manual step is needed (see the [firezone repo](https://github.com/garuda-tunnel/firezone)).
 
 Set `GARUDA_IMAGE_SOURCE=pull` for pre-built images. Use `build` only for
 development. See [prerequisites](docs/getting-started/prerequisites.md#image-source-pull-clients-vs-build-developers).
