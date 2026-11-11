@@ -170,7 +170,7 @@ run "edges_image_is_ubuntu_2604" {
 
   assert {
     condition     = var.gcp_image == "projects/ubuntu-os-cloud/global/images/family/ubuntu-2604-lts-amd64"
-    error_message = "gcp_image default must be the Ubuntu 26.04 LTS family (k3s-bootstrap v0.2.0 preflight asserts 26.04)"
+    error_message = "gcp_image default must be the Ubuntu 26.04 LTS family (k3s-bootstrap v0.3.2 preflight asserts 26.04)"
   }
 
   assert {

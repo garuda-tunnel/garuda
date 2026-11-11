@@ -4,8 +4,8 @@
 # infra outputs (tofu -chdir=../infra output -json > infra-outputs.tfvars.json).
 #
 # Sensitive values (routeros_password, firezone_admin_password,
-# firezone_wireguard_private_key, OIDC secrets)
-# must not be stored in VCS. Use environment variables or a secrets manager.
+# firezone_wireguard_private_key, OIDC secrets) must not be stored in VCS. Use
+# environment variables or a secrets manager.
 
 env_slug = "mini-site"
 

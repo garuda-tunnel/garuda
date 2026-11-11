@@ -12,7 +12,7 @@ on the hub and edges, and the stand's Cloudflare DNS records.
   is no SSH to the node). The Ubuntu cloud image is a one-time stand
   preparation outside Terraform; pass its volid as `proxmox.image_file_id`.
 - Provision the edge VMs on GCP (`modules/gcp_compute_host`).
-- Install k3s per node with k3s-bootstrap (`?ref=v0.2.0`): each node is a
+- Install k3s per node with k3s-bootstrap (`?ref=v0.3.2`): each node is a
   single-member cluster; the Proxmox hub additionally installs
   `qemu-guest-agent` (the cloud image ships none). Host keys are
   trust-on-first-use: a `terraform_data` per node runs `ssh-keyscan` into

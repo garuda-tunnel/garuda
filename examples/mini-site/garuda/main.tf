@@ -7,6 +7,12 @@ locals {
   # Derived from modules/garuda_k8s/charts/garuda/Chart.yaml (single source of truth)
   # so the profile-rev hash always tracks the actually-deployed chart and cannot go stale.
   garuda_chart_version = module.garuda_k8s_hub.chart_version
+
+  firezone_database = {
+    namespace     = module.garuda_k8s_hub.namespace
+    cluster_name  = "postgres"
+    storage_class = module.cnpg_operator.storage_class_name
+  }
 }
 
 # --- WireGuard tunnel key-pairs (one tunnel object per edge) ---
@@ -410,12 +416,46 @@ module "garuda_guest_firezone_kube" {
   transit_interfaces   = "wg-firezone"
 }
 
+# --- Firezone database (hub, CNPG) ---
+
+module "cnpg_operator" {
+  source = "./modules/cnpg_operator"
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/charts/cloudnative-pg
+  chart_version = "0.29.1"
+
+  providers = {
+    helm       = helm.hub
+    kubernetes = kubernetes.hub
+  }
+
+  depends_on = [module.garuda_k8s_hub]
+}
+
+module "firezone_db" {
+  source = "./modules/cnpg_database"
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/charts/cluster
+  chart_version = "0.9.0"
+  # shortcut: the org Renovate regex needs an X.Y.Z value and has no digest capture, so this
+  # tag@digest pin is bumped by hand until garuda-tunnel/.github gains a digest matchString.
+  image = "ghcr.io/cloudnative-pg/postgresql:17.11-202611020810-standard-trixie@sha256:4d0aac315c4d8c3202252bd06fea83b16951cc57234a7b610eeaa382ff4482d0"
+
+  providers = {
+    helm = helm.hub
+  }
+
+  namespace     = local.firezone_database.namespace
+  name          = local.firezone_database.cluster_name
+  database      = "firezone"
+  owner         = "firezone"
+  storage_class = local.firezone_database.storage_class
+}
+
 # --- Firezone (hub, k8s) ---
 
 module "firezone_kube" {
-  source = "git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v2.0.1"
+  source = "git::https://github.com/garuda-tunnel/firezone.git//kube?ref=v3.0.0"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/firezone
-  chart_version = "2.0.1"
+  chart_version = "3.0.0"
 
   providers = {
     helm       = helm.hub
@@ -423,7 +463,6 @@ module "firezone_kube" {
   }
 
   namespace      = module.garuda_k8s_hub.namespace
-  firezone_dir   = local.firezone_facts.directory
   firezone_image = var.fz_firezone_image
   server_fqdn    = local.firezone_fqdn
   admin_email    = local.firezone_facts.admin_email
@@ -439,12 +478,13 @@ module "firezone_kube" {
   configmaps  = module.garuda_guest_firezone_kube.configmaps
   ospf        = null
 
+  database_secret_name  = module.firezone_db.secret_name
   encryption_secrets    = var.firezone_encryption_secrets
   wireguard_private_key = var.firezone_wireguard_private_key
 
   oidc_providers = local.firezone_oidc_providers
 
-  depends_on = [module.garuda_k8s_hub, module.cert_manager, module.k8s_gateway_bootstrap]
+  depends_on = [module.garuda_k8s_hub, module.cert_manager, module.k8s_gateway_bootstrap, module.firezone_db]
 }
 
 # --- garuda_guest intent for ipt_server workload ---

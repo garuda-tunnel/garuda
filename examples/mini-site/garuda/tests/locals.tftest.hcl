@@ -224,17 +224,6 @@ run "pinning_egress_includes_border" {
   }
 }
 
-run "firezone_facts_directory" {
-  command = plan
-
-  # server_url was dropped from firezone_facts (dead: firezone_kube consumes
-  # local.firezone_fqdn directly via server_fqdn). directory remains referenced.
-  assert {
-    condition     = local.firezone_facts.directory == "/opt/garuda/firezone"
-    error_message = "firezone directory must be /opt/garuda/firezone"
-  }
-}
-
 run "regression_catchall_domain_in_ipt_routes" {
   command = plan
 

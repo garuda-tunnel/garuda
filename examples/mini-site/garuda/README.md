@@ -4,7 +4,8 @@ This Terragrunt unit deploys Garuda workloads. It depends on `infra/` outputs.
 
 ## Responsibilities
 
-- Deploy hub workloads: backbone network, Firezone, `ipt_server`.
+- Deploy hub workloads: backbone network, CNPG operator, Firezone database,
+  Firezone v3, `ipt_server`.
 - Deploy edge WireGuard tunnels (Linux peer) for each entry in `edges` map.
 - Deploy hub-to-RouterOS WireGuard tunnel (single path).
 - Configure routing policy via `routes` and `pinning_egress`.
@@ -39,6 +40,25 @@ The gated resources use `count`; `moved` blocks in `main.tf` keep their state
 addresses (`x` to `x[0]`) so default plans show no destroy/create.
 
 ## Operator prerequisites
+
+Firezone uses the CNPG `postgres` cluster in the hub workload namespace, on
+`local-path-retain`; it receives connection credentials from `postgres-app`.
+Node precondition: k3s-bootstrap `v0.3.2` or newer (what `infra/` pins) — its
+runc AppArmor attachment fix is required on Ubuntu kernels `7.0.0-41` and
+later, or the Postgres instance never becomes ready.
+The database lives only on the hub's `local-path-retain` volume; keep that volume on a
+backed-up data disk where the site has one (k3s `default-local-storage-path` for the hub in the
+infra unit's `k3s_config`; this example's `infra/` does not, `examples/local-stand/infra/main.tf`
+shows the hub-only form). After a VM rebuild re-attach the old directory by hand: firezone
+runbook section 9 ("Re-attach the old volume after a VM rebuild"). Object-store backups were
+removed as unused (history at garuda-internal `b12124c4`); re-add them as a separate task when
+needed.
+`firezone_encryption_secrets` supplies only application encryption/signing keys,
+not a database password. Preserve those keys and `firezone_wireguard_private_key`
+when restoring a database. For existing installations, migrate the old database
+**before** applying v3; do not switch an existing app to an empty database. See
+the [Firezone v3 migration instructions](https://github.com/garuda-tunnel/firezone/blob/v3.0.0/kube/README.md#migrating-from-2x-to-3x).
+The old host data directories are neither mounted nor deleted by this unit.
 
 This unit's Terragrunt wrapper invokes `garuda-tunnel` through `uvx` in a
 `before_hook` to open an SSH local-forward to each edge k3s apiserver

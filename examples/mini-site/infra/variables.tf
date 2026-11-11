@@ -59,7 +59,7 @@ variable "gcp" {
 }
 
 variable "gcp_image" {
-  description = "Boot image (family or full path) for the GCP edge VMs. Default is Ubuntu 26.04 LTS: k3s-bootstrap v0.2.0 preflight asserts 26.04, while the gcp_compute_host default is 24.04."
+  description = "Boot image (family or full path) for the GCP edge VMs. Default is Ubuntu 26.04 LTS: k3s-bootstrap v0.3.2 preflight asserts 26.04, while the gcp_compute_host default is 24.04."
   type        = string
   default     = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2604-lts-amd64"
 

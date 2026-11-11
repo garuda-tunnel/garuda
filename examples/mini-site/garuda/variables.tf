@@ -317,7 +317,8 @@ variable "firezone_encryption_secrets" {
 Forwarded to module.firezone_kube.encryption_secrets. See the module
 documentation for the recovery procedure. Default {} means random
 generation on first apply; operators supplying this object via
-secrets.sops.yaml restore a database encrypted under prior keys.
+secrets.sops.yaml restore a database encrypted under prior keys. Database
+connection credentials are managed by CNPG, not this object.
 EOT
   type = object({
     guardianSecretKey     = optional(string)
@@ -326,7 +327,6 @@ EOT
     cookieSigningSalt     = optional(string)
     cookieEncryptionSalt  = optional(string)
     databaseEncryptionKey = optional(string)
-    databasePassword      = optional(string)
   })
   default   = {}
   sensitive = true

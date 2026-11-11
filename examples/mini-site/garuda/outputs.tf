@@ -62,3 +62,8 @@ output "firezone_wireguard_public_key" {
   description = "Firezone WireGuard server public key (what client configs embed)."
   value       = module.firezone_kube.wireguard_public_key
 }
+
+output "firezone_database" {
+  description = "Firezone CNPG namespace, cluster name and Retain StorageClass (local-stand e2e expectations)."
+  value       = local.firezone_database
+}

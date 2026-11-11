@@ -23,7 +23,6 @@ locals {
 
   # --- Firezone workload facts. ---
   firezone_facts = {
-    directory      = "/opt/garuda/firezone"
     admin_email    = var.firezone_admin_email
     admin_password = var.firezone_admin_password
     client_subnet  = var.firezone_client_subnet

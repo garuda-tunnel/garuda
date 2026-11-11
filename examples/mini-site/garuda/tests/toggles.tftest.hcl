@@ -468,3 +468,22 @@ run "host_lan_alias_rejects_non_ipv4" {
 
   expect_failures = [var.host_lan_alias]
 }
+
+# Validates: The Firezone database is addressed by one name end to end: the
+# e2e output, the Cluster/release and the Secret handed to Firezone agree, on
+# the Retain StorageClass.
+# Code: main.tf::firezone_db, main.tf::firezone_kube (database_secret_name), outputs.tf::firezone_database
+# Assertion: cluster postgres, Secret postgres-app, StorageClass local-path-retain.
+# Method: Plan with defaults and inspect the module outputs and the root output.
+run "firezone_database_is_one_retained_cluster" {
+  command = plan
+
+  assert {
+    condition = alltrue([
+      output.firezone_database.cluster_name == module.firezone_db.cluster_name,
+      module.firezone_db.secret_name == "${output.firezone_database.cluster_name}-app",
+      output.firezone_database.storage_class == "local-path-retain",
+    ])
+    error_message = "e2e output, Cluster and Firezone's Secret must name the same postgres cluster on local-path-retain."
+  }
+}

@@ -96,8 +96,11 @@ resource "terraform_data" "known_hosts" {
 }
 
 module "k3s" {
-  for_each   = local.k3s_nodes
-  source     = "git::https://github.com/garuda-tunnel/k3s-bootstrap.git?ref=v0.2.0"
+  for_each = local.k3s_nodes
+  # v0.3.2 ships the runc AppArmor attachment fix (k3s-bootstrap #18): without
+  # it Postgres does not start on Ubuntu kernels >= 7.0.0-41. New optional
+  # inputs only, so nothing else changes for callers of v0.2.0.
+  source     = "git::https://github.com/garuda-tunnel/k3s-bootstrap.git?ref=v0.3.2"
   depends_on = [terraform_data.known_hosts]
 
   node_type            = "initial"

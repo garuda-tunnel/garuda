@@ -92,6 +92,21 @@ changes before moving the `?ref=` to `v0.21.0`. This is a migration, not a bump:
   the generated key are kept.
 - `examples/mini-site/garuda` is unchanged.
 
+## Upgrading to 0.24.0
+
+`examples/mini-site/garuda` moves Firezone to v3 on a CNPG database. This is a
+data migration, not just a ref bump:
+
+- **Migrate the v2 database before the upgrade apply.** Firezone v3 starts on
+  an empty `firezone` database unless the old one is dumped and restored
+  first. Follow the [CNPG migration runbook](https://github.com/garuda-tunnel/firezone/blob/main/docs/operations/operator-runbook-cnpg-migration.md)
+  in the firezone repository, including its kernel/AppArmor precondition.
+- The v2 hostPath `postgres-data` directory is neither mounted nor deleted by
+  v3; remove it manually only after the migration has soaked.
+- Durability of the new database (data disk placement, re-attach after a VM rebuild) is an
+  operator duty: see
+  [`garuda/README.md`](garuda/README.md) → "Operator prerequisites".
+
 ## Upgrading: caller-owned GCP addresses
 
 This upgrade requires OpenTofu 1.10.0 or newer.
