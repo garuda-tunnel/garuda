@@ -15,6 +15,7 @@ chart at `${path.module}/charts/garuda`.
 | `namespace`       | `"garuda"`  | DNS-1123 label for the Kubernetes namespace. |
 | `backbone_subnet` | (required)  | CIDR for the `backbone` NAD's host-local IPAM, e.g. `10.42.0.0/24`. |
 | `border_subnet`   | (required)  | CIDR for the `border` NAD's host-local IPAM, e.g. `10.43.0.0/24`. |
+| `mtu_policy`      | `{ site_mtu = 1330 }` | Site MTU/MSS policy object, same type/validation as the component modules; `effective_mtu` becomes the `border` NAD's bridge `mtu`. A NAD MTU reaches only new sandboxes: pass the same `mtu_policy` to the `garuda_guest` of every `border`-attached workload (hash-only input), so a change rolls those pods; the host bridge MTU then follows its smallest port by itself. |
 | `install_cni`     | `true`      | When `true`, install Multus from vendored manifests. Set `false` when CNI is pre-installed. |
 
 ## Outputs
@@ -61,6 +62,11 @@ module "garuda_k8s_pt" {
 - The reaper is scoped to pods labelled `app.kubernetes.io/part-of=garuda`. The
   `garuda-multus-ready` Helm hook pod deliberately does not carry that label;
   keep any new hook pod unlabelled the same way.
+- The `persist-multus-conf` init container writes `00-multus-persistent.conf`
+  into the CNI conf dir so a rebooting node never boots flannel-only (ADR 0002
+  amendment, 2026-11-12). Removing garuda-cni from a node requires deleting
+  that file by hand, otherwise new pods' CNI ADD waits forever for a daemon
+  that is no longer there.
 
 ## What this module does NOT do
 

@@ -9,7 +9,10 @@ locals {
   # fleet and force spurious rolling updates. mtu is normalised to a string so
   # null/number representation changes cannot churn the hash. configmaps CONTENT
   # is hashed so Tier 2/3 edits trigger a rollout (sidecar renders at start only).
-  intent_hash = sha256(jsonencode({
+  # effective_mtu is hashed only when mtu_policy is set (border-attached guests),
+  # so the hashes of all other guests stay unchanged.
+  effective_mtu = var.mtu_policy == null ? null : (var.mtu_policy.site_mtu != null ? var.mtu_policy.site_mtu : var.mtu_policy.effective_mtu)
+  intent_hash = sha256(jsonencode(merge({
     profile             = var.profile
     ospf_router_id      = var.ospf_router_id
     networks            = var.networks
@@ -26,7 +29,7 @@ locals {
     frr_extra_configmap = var.frr_extra_configmap
     frr_raw_configmap   = var.frr_raw_configmap
     configmaps          = var.configmaps
-  }))
+  }, local.effective_mtu == null ? {} : { effective_mtu = local.effective_mtu })))
   config_hash = sha256("${local.intent_hash}:${var.garuda_chart_version}")
 
   # --- intent annotations, empty values omitted (Decision #7) ---

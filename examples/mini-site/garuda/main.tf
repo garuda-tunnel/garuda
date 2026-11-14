@@ -56,6 +56,7 @@ module "garuda_k8s" {
   namespace              = "garuda"
   backbone_subnet        = var.backbone_subnet
   border_subnet          = var.border_subnet
+  mtu_policy             = local.mtu_policy
   pod_reaper_max_unready = var.pod_reaper_max_unready
 }
 
@@ -73,6 +74,7 @@ module "garuda_guest_wireguard_kube_edge" {
   garuda_chart_version = local.garuda_chart_version
   ospf_router_id       = each.value.ospf_router_id_peer
   networks             = ["backbone", "border"]
+  mtu_policy           = local.mtu_policy # hash-only: rolls the pods when the border NAD MTU changes
   interfaces           = module.wireguard_tunnel[each.key].peers["edge"].kernel_ifname
 
   redistribute        = lookup(local.host_lan_frr, each.key, local.host_lan_frr_none).redistribute
@@ -184,6 +186,7 @@ module "garuda_k8s_hub" {
   namespace              = "garuda"
   backbone_subnet        = var.backbone_subnet
   border_subnet          = var.border_subnet
+  mtu_policy             = local.mtu_policy
   pod_reaper_max_unready = var.pod_reaper_max_unready
 }
 
@@ -199,6 +202,7 @@ module "garuda_guest_wireguard_kube_hub" {
   garuda_chart_version = local.garuda_chart_version
   ospf_router_id       = each.value.ospf_router_id_hub
   networks             = ["backbone", "border"]
+  mtu_policy           = local.mtu_policy # hash-only: rolls the pods when the border NAD MTU changes
   interfaces           = "backbone,${module.wireguard_tunnel[each.key].peers["core"].kernel_ifname}"
 }
 
@@ -410,6 +414,7 @@ module "garuda_guest_firezone_kube" {
   garuda_chart_version = local.garuda_chart_version
   ospf_router_id       = var.ospf_router_ids.firezone
   networks             = ["backbone", "border"]
+  mtu_policy           = local.mtu_policy # hash-only: rolls the pods when the border NAD MTU changes
   interfaces           = "backbone,wg-firezone"
   passive_interfaces   = "wg-firezone"
   redistribute         = "connected,kernel"
@@ -435,8 +440,7 @@ module "firezone_db" {
   source = "./modules/cnpg_database"
   # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/charts/cluster
   chart_version = "0.9.0"
-  # shortcut: the org Renovate regex needs an X.Y.Z value and has no digest capture, so this
-  # tag@digest pin is bumped by hand until garuda-tunnel/.github gains a digest matchString.
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql versioning=regex:^(?<major>\d+)\.(?<minor>\d+)-(?<patch>\d{12})-(?<compatibility>[^-]+-[^-]+)$
   image = "ghcr.io/cloudnative-pg/postgresql:17.11-202611020810-standard-trixie@sha256:4d0aac315c4d8c3202252bd06fea83b16951cc57234a7b610eeaa382ff4482d0"
 
   providers = {
@@ -542,6 +546,7 @@ module "garuda_guest_border_router" {
   profile              = "border"
   garuda_chart_version = local.garuda_chart_version
   networks             = ["backbone", "border"]
+  mtu_policy           = local.mtu_policy # hash-only: rolls the pods when the border NAD MTU changes
   # border runs OSPF on backbone; router-id flows to the net.garuda-tunnel/router-id
   # annotation -> MAP ROUTER_ID env -> frr-sidecar (border profile template ${ROUTER_ID}).
   # Same value also passed to the guest module's ospf{} for the egress-setup initContainer.

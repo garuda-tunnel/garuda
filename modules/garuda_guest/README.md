@@ -34,6 +34,7 @@ secondary-network attachment at pod admission based on these annotations.
 | `transit_interfaces` | `string` | no | CSV of PBR consumer interfaces. XOR: forbidden when `profile = "transit-provider"`. |
 | `nic_attach` | `string` | no | Override profile nic-attach (CSV of NAD names). |
 | `mtu` | `number` | no | MTU hint (1280–1420). `null` = use profile default. |
+| `mtu_policy` | `object` | no | Site MTU/MSS policy (same object as the component modules). Hash-only, for guests that attach `border`: a change of its `effective_mtu` rolls the pods (the `border` NAD MTU reaches only new sandboxes). No annotation is emitted. `null` = not hashed. |
 | `sidecar_image` | `string` | no | Per-guest frr-sidecar image override. |
 | `frr_mode` | `string` | no | `""` (default) or `"raw"`. Requires `frr_raw_configmap` when `raw`. |
 | `frr_extra_configmap` | `string` | no | Tier 2: ConfigMap name the sidecar appends to rendered frr.conf. |
@@ -93,5 +94,6 @@ do not reorder the `intent_hash` keys in `main.tf`.
 - `default_originate`: `""`, `"true"`, or `"false"`
 - `transit_interfaces`: forbidden when `profile = "transit-provider"` (XOR invariant)
 - `mtu`: null or 1280–1420
+- `mtu_policy`: null, or the same rules as the component modules (`site_mtu` alone, or `effective_mtu` + `fixed_mss`)
 - `frr_mode`: `""` or `"raw"`; `raw` requires `frr_raw_configmap`; `raw` forbids `interfaces`/`redistribute`
 - `extra_annotations`: `net.garuda-tunnel/*` and `k8s.v1.cni.cncf.io/networks` keys forbidden

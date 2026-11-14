@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.3](https://github.com/garuda-tunnel/garuda-internal/compare/garuda-chart-v0.11.2...garuda-chart-v0.11.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **garuda:** border NAD MTU follows mtu_policy ([#216](https://github.com/garuda-tunnel/garuda-internal/issues/216)) ([d5fc301](https://github.com/garuda-tunnel/garuda-internal/commit/d5fc301ef76fb666033490c09e231c688353aaf4))
+
 ## [0.11.2](https://github.com/garuda-tunnel/garuda-internal/compare/v0.11.1...v0.11.2) (2026-11-03)
 
 

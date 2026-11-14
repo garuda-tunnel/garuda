@@ -223,3 +223,44 @@ run "pod_reaper_max_unready_rejects_bad_duration" {
 
   expect_failures = [var.pod_reaper_max_unready]
 }
+
+# mtu_policy feeds the garuda chart's borderMtu (the border NAD's bridge mtu):
+# the site_mtu form must yield site_mtu, the explicit form effective_mtu.
+run "mtu_policy_default_feeds_border_nad_mtu" {
+  command = plan
+
+  assert {
+    condition     = yamldecode(helm_release.garuda.values[0]).borderMtu == 1330
+    error_message = "mtu_policy default { site_mtu = 1330 } must render the border NAD mtu as 1330."
+  }
+}
+
+run "mtu_policy_effective_mtu_feeds_border_nad_mtu" {
+  command = plan
+
+  variables {
+    mtu_policy = {
+      effective_mtu = 1400
+      fixed_mss     = 1360
+    }
+  }
+
+  assert {
+    condition     = yamldecode(helm_release.garuda.values[0]).borderMtu == 1400
+    error_message = "explicit mtu_policy form must render effective_mtu (not fixed_mss) as the border NAD mtu."
+  }
+}
+
+run "mtu_policy_rejects_invalid_combo" {
+  command = plan
+
+  variables {
+    mtu_policy = {
+      site_mtu      = 1330
+      effective_mtu = 1400
+      fixed_mss     = 1360
+    }
+  }
+
+  expect_failures = [var.mtu_policy]
+}

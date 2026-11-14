@@ -27,7 +27,7 @@ metadata:
 data:
   backbone_subnet: "10.42.0.0/24"
   border_subnet: "10.43.0.0/24"
-  chart_version: "0.11.0"
+  chart_version: "NORMALIZED"
 
 ---
 # Source: garuda/templates/profile-cm-border.yaml
@@ -692,12 +692,23 @@ spec:
   # backbone carries internal mesh traffic only, source IPs must be
   # preserved end-to-end for identity-aware features like the pinning
   # portal (see modules/garuda_k8s/charts/garuda/templates/nad-backbone.yaml).
+  #
+  # mtu (optional, borderMtu): cap the bridge at the site tunnel MTU. Border
+  # carries more than tunnel transit - host-LAN traffic and, on the hub,
+  # border-router forwarding from backbone cross it too; TCP is covered by the
+  # MSS clamps on the path, non-TCP above the MTU relies on PMTUD. With the
+  # default 1500 bridge, oversized inbound internet packets (e.g. 1480-byte
+  # QUIC with DF) are forwarded into pods whose tunnel egress is narrower, and
+  # the pod's frag-needed reply leaves via the pod default route and is dropped
+  # by the host as a martian - a PMTU black hole. At the tunnel MTU the host
+  # itself generates the frag-needed on forwarding.
   config: |
     {
       "cniVersion": "0.4.0",
       "name": "border",
       "type": "bridge",
       "bridge": "border",
+      "mtu": 1330,
       "isGateway": true,
       "ipMasq": true,
       "ipam": {

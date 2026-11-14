@@ -5,6 +5,12 @@ backboneSubnet: ""
 borderSubnet: ""
 borderGateway: ""
 borderRangeStart: ""
+# MTU of the `border` bridge and its pod veths (CNI bridge plugin "mtu").
+# Set to the site tunnel MTU so the host rejects oversized inbound internet
+# packets with a real frag-needed (PMTUD) instead of delivering them to pods
+# whose tunnel interface is narrower. Null keeps the plugin default (1500).
+# Rollout and rollback: see the `mtu_policy` row of the garuda_k8s README.
+borderMtu: null
 
 multusReadiness:
   enabled: true

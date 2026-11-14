@@ -98,6 +98,57 @@ variable "mtu" {
   }
 }
 
+variable "mtu_policy" {
+  description = "Site MTU/MSS policy, same object as the component modules take. Hash-only input for guests that attach `border`: no annotation is emitted, but a change of the derived effective_mtu rolls the pods, because the border NAD's MTU reaches only new sandboxes and not every component carries it in its pod template (firezone caps its MSS by firezone_client_mtu). null for guests that do not attach border."
+  type = object({
+    site_mtu          = optional(number)
+    effective_mtu     = optional(number)
+    fixed_mss         = optional(number)
+    mss_clamp_enabled = optional(bool, true)
+  })
+  default = null
+
+  validation {
+    condition = var.mtu_policy == null || (
+      (var.mtu_policy.site_mtu != null && var.mtu_policy.effective_mtu == null && var.mtu_policy.fixed_mss == null) ||
+      (var.mtu_policy.site_mtu == null && var.mtu_policy.effective_mtu != null && var.mtu_policy.fixed_mss != null)
+    )
+    error_message = "Set either mtu_policy.site_mtu or both mtu_policy.effective_mtu and mtu_policy.fixed_mss."
+  }
+
+  validation {
+    condition = (
+      var.mtu_policy == null || var.mtu_policy.site_mtu == null ||
+      (var.mtu_policy.site_mtu >= 1280 && var.mtu_policy.site_mtu <= 1420)
+    )
+    error_message = "mtu_policy.site_mtu must be between 1280 and 1420."
+  }
+
+  validation {
+    condition = (
+      var.mtu_policy == null || var.mtu_policy.effective_mtu == null ||
+      (var.mtu_policy.effective_mtu >= 1280 && var.mtu_policy.effective_mtu <= 1420)
+    )
+    error_message = "mtu_policy.effective_mtu must be between 1280 and 1420."
+  }
+
+  validation {
+    condition = (
+      var.mtu_policy == null || var.mtu_policy.fixed_mss == null ||
+      (var.mtu_policy.fixed_mss >= 536 && var.mtu_policy.fixed_mss <= 1460)
+    )
+    error_message = "mtu_policy.fixed_mss must be between 536 and 1460."
+  }
+
+  validation {
+    condition = (
+      var.mtu_policy == null || var.mtu_policy.fixed_mss == null || var.mtu_policy.effective_mtu == null ||
+      var.mtu_policy.fixed_mss <= var.mtu_policy.effective_mtu - 40
+    )
+    error_message = "mtu_policy.fixed_mss must be less than or equal to mtu_policy.effective_mtu - 40."
+  }
+}
+
 variable "sidecar_image" {
   description = "Per-guest frr-sidecar image override (net.garuda-tunnel/sidecar-image)."
   type        = string

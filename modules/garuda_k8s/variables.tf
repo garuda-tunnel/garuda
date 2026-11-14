@@ -33,9 +33,68 @@ variable "install_cni" {
   description = <<EOT
 When true, the chart installs Multus using k3s-native CNI paths. Set to
 false if it is pre-installed by the cluster operator.
+Trap: the persist-multus-conf init container leaves
+00-multus-persistent.conf in the CNI conf dir (/var/lib/rancher/k3s/agent/etc/cni/net.d)
+after the release is gone (install_cni=false or module destroy); it delegates to
+multus-shim, which waits for the Multus daemon, so delete the file by hand when
+removing garuda-cni from a node.
 EOT
   type        = bool
   default     = true
+}
+
+variable "mtu_policy" {
+  description = "Site MTU/MSS policy. site_mtu derives effective_mtu and fixed_mss; otherwise effective_mtu and fixed_mss must be supplied explicitly. garuda_k8s uses effective_mtu as the `border` NAD's bridge MTU; fixed_mss and mss_clamp_enabled belong to the component modules."
+  nullable    = false
+  default     = { site_mtu = 1330 }
+
+  type = object({
+    site_mtu          = optional(number)
+    effective_mtu     = optional(number)
+    fixed_mss         = optional(number)
+    mss_clamp_enabled = optional(bool, true)
+  })
+
+  validation {
+    condition = (
+      (var.mtu_policy.site_mtu != null && var.mtu_policy.effective_mtu == null && var.mtu_policy.fixed_mss == null) ||
+      (var.mtu_policy.site_mtu == null && var.mtu_policy.effective_mtu != null && var.mtu_policy.fixed_mss != null)
+    )
+    error_message = "Set either mtu_policy.site_mtu or both mtu_policy.effective_mtu and mtu_policy.fixed_mss."
+  }
+
+  validation {
+    condition = (
+      var.mtu_policy.site_mtu == null ||
+      (var.mtu_policy.site_mtu >= 1280 && var.mtu_policy.site_mtu <= 1420)
+    )
+    error_message = "mtu_policy.site_mtu must be between 1280 and 1420."
+  }
+
+  validation {
+    condition = (
+      var.mtu_policy.effective_mtu == null ||
+      (var.mtu_policy.effective_mtu >= 1280 && var.mtu_policy.effective_mtu <= 1420)
+    )
+    error_message = "mtu_policy.effective_mtu must be between 1280 and 1420."
+  }
+
+  validation {
+    condition = (
+      var.mtu_policy.fixed_mss == null ||
+      (var.mtu_policy.fixed_mss >= 536 && var.mtu_policy.fixed_mss <= 1460)
+    )
+    error_message = "mtu_policy.fixed_mss must be between 536 and 1460."
+  }
+
+  validation {
+    condition = (
+      var.mtu_policy.fixed_mss == null ||
+      var.mtu_policy.effective_mtu == null ||
+      var.mtu_policy.fixed_mss <= var.mtu_policy.effective_mtu - 40
+    )
+    error_message = "mtu_policy.fixed_mss must be less than or equal to mtu_policy.effective_mtu - 40."
+  }
 }
 
 variable "pod_reaper_max_unready" {

@@ -35,7 +35,8 @@ render_garuda() {
     --set backboneSubnet=10.42.0.0/24 \
     --set borderSubnet=10.43.0.0/24 \
     --set borderGateway=10.43.0.1 \
-    --set borderRangeStart=10.43.0.2
+    --set borderRangeStart=10.43.0.2 \
+    --set borderMtu=1330
 }
 
 render_garuda_layers_off() {
@@ -45,6 +46,7 @@ render_garuda_layers_off() {
     --set borderSubnet=10.43.0.0/24 \
     --set borderGateway=10.43.0.1 \
     --set borderRangeStart=10.43.0.2 \
+    --set borderMtu=1330 \
     --set multusReadiness.enabled=false \
     --set podReaper.enabled=false
 }
@@ -56,11 +58,20 @@ render_cni() {
     --set installCni="${install}"
 }
 
+# release-please (helm release-type) bumps the garuda Chart.yaml on every
+# release; the render embeds the version (configmap-network-meta chart_version),
+# so a raw diff would go red on every release with no functional change.
+# Normalizing both sides keeps the goldens release-independent; presence of the
+# line is still asserted by the golden itself.
+normalize() {
+  sed -E 's/^(  chart_version: ").*(")$/\1NORMALIZED\2/'
+}
+
 declare -A renders
-renders["garuda"]="$(render_garuda)"
+renders["garuda"]="$(render_garuda | normalize)"
 renders["garuda-cni-default"]="$(render_cni true)"
 renders["garuda-cni-disabled"]="$(render_cni false)"
-renders["garuda-layers-off"]="$(render_garuda_layers_off)"
+renders["garuda-layers-off"]="$(render_garuda_layers_off | normalize)"
 
 cni_render="${renders["garuda-cni-default"]}"
 for expected in \
@@ -74,6 +85,20 @@ for expected in \
   fi
 done
 
+# The persistent shim conf: the daemon deletes its generated 00-multus.conf on
+# SIGTERM (every reboot and rollout), so the persist-multus-conf init container
+# must write a copy the daemon does not own, delegating to the k3s flannel
+# conflist exactly like the generated conf; otherwise boot-time sandboxes are
+# built with flannel only (ADR 0002 amendment, 2026-11-12).
+for expected in \
+  '00-multus-persistent.conf' \
+  '"clusterNetwork":"/host/etc/cni/net.d/10-flannel.conflist"'; do
+  if [[ "${cni_render}" != *"${expected}"* ]]; then
+    echo "garuda-cni-default missing persistent multus conf setting: ${expected}" >&2
+    exit 1
+  fi
+done
+
 garuda_render="${renders["garuda"]}"
 for expected in \
   '"type": "host-local"' \
@@ -82,12 +107,25 @@ for expected in \
   '"dataDir": "/var/run/cni/border"' \
   '"subnet": "10.43.0.0/24"' \
   '"rangeStart": "10.43.0.2"' \
-  '"gateway": "10.43.0.1"'; do
+  '"gateway": "10.43.0.1"' \
+  '"mtu": 1330'; do
   if [[ "${garuda_render}" != *"${expected}"* ]]; then
     echo "garuda missing expected host-local setting: ${expected}" >&2
     exit 1
   fi
 done
+
+# Negative assertion: without borderMtu the border NAD must not pin an MTU;
+# the bridge plugin default (1500) applies until a value is set from the site.
+if helm template g "${GARUDA_CHART}" \
+  --namespace garuda \
+  --set backboneSubnet=10.42.0.0/24 \
+  --set borderSubnet=10.43.0.0/24 \
+  --set borderGateway=10.43.0.1 \
+  --set borderRangeStart=10.43.0.2 | grep -q '"mtu"'; then
+  echo "border NAD must carry an mtu only when borderMtu is set" >&2
+  exit 1
+fi
 
 # Pod reaper only reaps pods whose containers started and failed (never pods
 # that have no sandbox yet), and Helm hook pods must stay outside its

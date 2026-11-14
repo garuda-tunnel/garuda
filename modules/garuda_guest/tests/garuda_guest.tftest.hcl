@@ -208,6 +208,57 @@ run "profile_rev_changes_with_configmap_content" {
   }
 }
 
+# mtu_policy is hash-only: the derived effective_mtu rolls border-attached pods,
+# in both policy forms, and no annotation is emitted.
+run "profile_rev_changes_with_mtu_policy_site_mtu" {
+  command = plan
+  variables {
+    mtu_policy = { site_mtu = 1330 }
+  }
+  assert {
+    condition     = output.annotations["net.garuda-tunnel/profile-rev"] == "7289edc56f27ee178e02675eb9c20b203199677558a588b1e9f69e97731174fa"
+    error_message = "mtu_policy.site_mtu MUST change profile-rev (a NAD MTU reaches only new sandboxes)"
+  }
+  assert {
+    condition     = output.annotations["net.garuda-tunnel/profile-rev"] != "50ccfb1f4c5e1294acb2a387e22c9162f2b6f0b0b4aca2e6f271b304fc98c22a"
+    error_message = "mtu_policy MUST produce a different profile-rev than the baseline"
+  }
+  assert {
+    condition     = alltrue([for k in keys(output.annotations) : !strcontains(k, "mtu")])
+    error_message = "mtu_policy is hash-only: no MTU annotation key"
+  }
+}
+
+run "profile_rev_mtu_policy_explicit_form_hashes_effective_mtu" {
+  command = plan
+  variables {
+    mtu_policy = { effective_mtu = 1330, fixed_mss = 1290 }
+  }
+  assert {
+    condition     = output.annotations["net.garuda-tunnel/profile-rev"] == "7289edc56f27ee178e02675eb9c20b203199677558a588b1e9f69e97731174fa"
+    error_message = "explicit form with effective_mtu = 1330 must hash like site_mtu = 1330"
+  }
+}
+
+run "profile_rev_changes_with_effective_mtu_value" {
+  command = plan
+  variables {
+    mtu_policy = { site_mtu = 1400 }
+  }
+  assert {
+    condition     = output.annotations["net.garuda-tunnel/profile-rev"] == "5173349f87c20e1b28baafd07f08ef1887e4d01ab402a4885df2326ee619a092"
+    error_message = "a different effective_mtu MUST give a different profile-rev"
+  }
+}
+
+run "rejects_invalid_mtu_policy_combo" {
+  command = plan
+  variables {
+    mtu_policy = { site_mtu = 1330, effective_mtu = 1400, fixed_mss = 1360 }
+  }
+  expect_failures = [var.mtu_policy]
+}
+
 run "omits_empty_mtu_annotation" {
   command = plan
   assert {

@@ -24,6 +24,11 @@
       "type": "string",
       "minLength": 7
     },
+    "borderMtu": {
+      "type": ["integer", "null"],
+      "minimum": 68,
+      "maximum": 65535
+    },
     "nameOverride": {
       "type": "string"
     },

@@ -265,6 +265,31 @@ spec:
             - name: cnibin
               mountPath: /host/var/lib/rancher/k3s/data/cni
               mountPropagation: Bidirectional
+        # The daemon deletes its generated 00-multus.conf on SIGTERM (every
+        # reboot and every kube-multus rollout), so the node would boot with
+        # flannel only and pods would get sandboxes without their Multus
+        # interfaces until the reaper replaces them (~3 min). This copy is not
+        # owned by the daemon (its master-plugin finder skips the 00-multus*
+        # prefix), sorts before 00-multus.conf for containerd, and routes
+        # boot-time sandboxes through multus-shim, which waits for the daemon.
+        # Must stay byte-equal to the generated conf; re-checked on every
+        # Multus bump (vendored-cni-NOTES.md).
+        - name: persist-multus-conf
+          image: {{ .Values.versions.multus_image | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - >-
+              printf '%s' "$CONF" > /host/etc/cni/net.d/.00-multus-persistent.tmp &&
+              mv /host/etc/cni/net.d/.00-multus-persistent.tmp /host/etc/cni/net.d/00-multus-persistent.conf
+          env:
+            - name: CONF
+              value: '{"binDir":"/var/lib/rancher/k3s/data/cni","capabilities":{"bandwidth":true,"portMappings":true},"cniVersion":"0.3.1","logLevel":"verbose","name":"multus-cni-network","clusterNetwork":"/host/etc/cni/net.d/10-flannel.conflist","type":"multus-shim"}'
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: cni
+              mountPath: /host/etc/cni/net.d
       terminationGracePeriodSeconds: 10
       volumes:
         - name: cni

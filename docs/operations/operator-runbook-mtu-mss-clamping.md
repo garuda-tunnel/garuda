@@ -1,7 +1,9 @@
 # Operator runbook — MTU / TCP-MSS clamping defense-in-depth
 
-**Scope:** roll out, verify, and (if needed) roll back the 3-layer bidirectional
+**Scope:** verify and (if needed) roll back the 3-layer bidirectional
 TCP-MSS clamping + WireGuard MTU alignment across the garuda-tunnel data path.
+The values come from one site-level `mtu_policy`; what it is, what it governs
+and how to change it: [mini-site README](../../examples/mini-site/README.md#site-mtumss-policy-mtu_policy).
 
 **Audience:** operator on duty for the garuda-tunnel release.
 
@@ -29,7 +31,7 @@ QUIC keeps working over a consistent MTU + transiting ICMP PTB.
 |---|---|---|---|
 | **WG pods** | `wg-hub-ros`, `wg-usa`, `wg-mexico`, both edge VMs | `postup.sh`: `oifname` clamp-to-pmtu (`rt mtu`) + `iifname` fixed MSS (`WG_FIXED_MSS`, chart-injected), gated on `WG_MSS_CLAMP_ENABLED`, in `table inet border_<iface>` | `oifname` = load-bearing return on the last WG hop; `iifname` = inbound-initiated defense |
 | **firezone sidecar** | `firezone` (`wg-firezone`) | chart-owned `mss-clamp` sidecar; load-bearing Chain-B return clamp. Details: [Firezone MSS clamp runbook](https://github.com/garuda-tunnel/firezone/blob/main/docs/operations/operator-runbook-mss-clamp.md) | both |
-| **ipt-server central** | `ipt-server` (`backbone`) | `table inet ipt_server_mss`, fixed MSS 1240 on `iifname`+`oifname backbone` | **forward only** (return is asymmetric — bypasses ipt-server, see §1 note) |
+| **ipt-server central** | `ipt-server` (`backbone`) | `table inet ipt_server_mss`, fixed MSS (`fixed_mss`) on `iifname`+`oifname backbone` | **forward only** (return is asymmetric — bypasses ipt-server, see §1 note) |
 | **border-router** | `border-router` (`backbone`) | `egress-setup` init container installs `table inet border_mss`, fixed MSS on `iifname`+`oifname backbone`, gated on `BR_MSS_CLAMP_ENABLED` | both, RU egress |
 | **RouterOS** | RouterOS own tunnel `wg-hub-ros` (module); `wg_tik` only via operator CLI handoff (§4) | `change-mss new-mss=clamp-to-pmtu` mangle on `in-interface` + `out-interface` (PMTU per-flow) | bidirectional |
 
@@ -43,51 +45,26 @@ clamped on `oifname`. So the load-bearing return clamp is:
 The ipt-server clamp is the **forward-direction** central defense layer; the
 per-WG `iifname` rules cover inbound-initiated flows (defense-in-depth).
 
-**MTU alignment (D6):** align both sides of each tunnel to the min:
-`wg-usa`/`wg-mexico` hub side `1370 → 1330` (match edge); `wg-hub-ros` RouterOS
-side `1420 → 1370` (match hub). `wg-firezone` already aligned at 1280.
+**MTU alignment:** both sides of every garuda tunnel (wg pods and the RouterOS
+`wg-hub-ros`) use the site `effective_mtu` (1330 for `site_mtu = 1330`).
+`wg-firezone` is Firezone-managed at 1280 (`firezone_client_mtu`).
 
-**Default fixed MSS = 1240** everywhere (≥ QUIC's RFC 9000 1200-byte floor).
-
----
-
-## 2. Rollout order (CRITICAL — spec §7.1, AC13)
-
-Lowering MTU before the clamps are in place increases PMTUD/ICMP-PTB churn
-(more segments need re-sizing while no clamp absorbs them). Therefore:
-
-1. **Merge the 5 component PRs**, let release-please cut per-repo versions:
-   - wireguard `#14` (postup bidirectional) + `#15` (RouterOS return + `wg_tik`
-     handoff + `var.mtu`)
-   - firezone `#13` (readiness-gated sidecar clamp)
-   - router `#15` (ipt-server central forward clamp)
-   - border-router `#11` (backbone forward clamp)
-
-2. **Stand pin bump — land the clamps in risk order:**
-
-   ```
-   ipt-server  →  border-router  →  wireguard  →  firezone
-   ```
-
-   firezone is **last** — it is the riskiest (adds a NET_ADMIN sidecar + a
-   readiness gate that blocks the firezone pod until the clamp is installed).
-   Validate each layer before advancing to the next.
-
-3. **Deploy the clamps BEFORE MTU alignment.** MTU lowering (Task 6) is a
-   **separate, later wave** — only after the clamps are verified live.
-
-4. **Per-stand order** (apply the whole sequence per stand before advancing):
-
-   ```
-   mini-site  →  vpn2  →  prod (prod last)
-   ```
-
-> The stand pin bump itself is a follow-up sub-project; this runbook only fixes
-> the **order** it must follow.
+**Fixed MSS = `site_mtu - 40`** (1290 at 1330); Firezone caps it at
+`firezone_client_mtu - 40` = 1240 (≥ QUIC's RFC 9000 1200-byte floor).
 
 ---
 
-## 3. Verification (run after each deploy wave, before advancing)
+## 2. Changing the site MTU
+
+Edit `local.mtu_policy` and apply; the pods roll (details in the
+mini-site README linked above). The clamps are part of every component version, so lowering the MTU
+needs no separate wave. Expect a **brief PMTUD churn** as in-flight segments
+re-discover the path MTU; sessions are not dropped (WireGuard MTU is per-side
+independent). Verify with §3 afterwards.
+
+---
+
+## 3. Verification (run after each apply that changes the policy)
 
 Run on the stand kubeconfig (hub). Repeat the egress checks through **all three
 egress** (RU border / USA / Mexico) and in **both** directions.
@@ -111,7 +88,7 @@ counters are non-zero on an active stand (run some TCP traffic first).
 ### 3.2 Observed MSS on a live session
 
 ```bash
-# On an active TCP session through each egress (expect advmss ~1240, never above):
+# On an active TCP session through each egress (expect advmss at or below `fixed_mss`: 1290 at `site_mtu = 1330`, 1240 via Firezone):
 ss -ti | grep -A1 ESTAB | grep -oE 'mss:[0-9]+|rcv_mss:[0-9]+|advmss:[0-9]+'
 ```
 
@@ -140,7 +117,7 @@ applicable, to exercise the `iifname` defense direction.
 ### 3.6 QUIC / HTTP3 through each egress
 
 ```bash
-# QUIC works because all inner payloads >= 1200 floor (see §8); UDP is not clamped:
+# QUIC works because all inner payloads >= 1200 floor (see §6); UDP is not clamped:
 curl --http3 -s -o /dev/null -w '%{http_version} %{http_code}\n' https://<quic-test-url>
 ```
 
@@ -177,59 +154,18 @@ by hand on the RouterOS device.
 
 ---
 
-## 5. MTU alignment disruption note
-
-The MTU-lowering wave (after clamps are verified):
-- `wg-usa` / `wg-mexico` hub side `1370 → 1330`
-- `wg-hub-ros` RouterOS side `1420 → 1370`
-
-Applying a lower MTU causes a **brief PMTUD churn** on each side as in-flight
-segments re-discover the path MTU, but **does not drop sessions**: WireGuard MTU
-is per-side independent, and the clamps (already deployed) absorb the resizing.
-Apply this wave **only after** §3 verification passes for the clamps.
-
----
-
-## 6. Per-chain MSS optional tuning (spec §9 — OFF by default)
-
-The default is a single fixed MSS **1240** on ipt-server for both chains
-(simplicity + safety). Chain A's true bottleneck is `wg-hub-ros` 1370 ⇒ MSS
-1330, so the fixed 1240 **over-clamps Chain A by ~90 bytes ≈ ~6.8% TCP
-throughput** on that chain. An operator who wants that back can opt into a
-per-chain split on ipt-server, keyed by client source subnet:
-
-```
-table inet ipt_server_mss {
-    chain mss_clamp {
-        type filter hook forward priority mangle; policy accept;
-        # Chain A (RouterOS LAN clients) — bottleneck wg-hub-ros 1370
-        ip saddr 192.168.88.0/24 tcp flags syn tcp option maxseg size set 1330
-        ip daddr 192.168.88.0/24 tcp flags syn tcp option maxseg size set 1330
-        # Chain B (Firezone clients) — bottleneck wg-firezone 1280
-        ip saddr 10.0.24.0/24 tcp flags syn tcp option maxseg size set 1240
-        ip daddr 10.0.24.0/24 tcp flags syn tcp option maxseg size set 1240
-    }
-}
-```
-
-**Tradeoff:** +~6.8% Chain-A throughput vs more rules + per-stand subnet
-knowledge + the single safe fixed value being lost. **Default stays 1240.**
-(The Chain-B return clamp is still `firezone` `oifname wg-firezone`, unaffected.)
-
----
-
-## 7. Rollback
+## 5. Rollback
 
 Per-layer off-switches (pick the smallest action that unblocks):
 
 | Layer | Off-switch |
 |---|---|
-| ipt-server | `--set mtuPolicy.mssClampEnabled=false` |
-| border-router | `--set mtuPolicy.mssClampEnabled=false` |
+| ipt-server | `mtu_policy.mss_clamp_enabled = false` |
+| border-router | `mtu_policy.mss_clamp_enabled = false` |
 | firezone | See the [Firezone MSS clamp runbook](https://github.com/garuda-tunnel/firezone/blob/main/docs/operations/operator-runbook-mss-clamp.md) |
-| wireguard postup | `--set mtuPolicy.mssClampEnabled=false` disables the `iifname` fixed-MSS rule; the `oifname` route-PMTU clamp is always present |
+| wireguard postup | `mtu_policy.mss_clamp_enabled = false` disables the `iifname` fixed-MSS rule; the `oifname` route-PMTU clamp is always present |
 | RouterOS `wg_tik` | delete the manually-added mangle rules (`/ip firewall mangle remove [find comment~"garuda-wg_tik"]`) |
-| MTU alignment | revert `mtuPolicy.effectiveMtu` in the wireguard chart and `var.mtu_policy.effective_mtu` in the RouterOS module to the prior value |
+| MTU alignment | revert `local.mtu_policy` to the prior value (one object feeds the wireguard, RouterOS and `border` NAD values) |
 
 **Full revert:** downgrade the chart/module via the stand pin (point the pin
 back to the pre-clamp chart/module version and `terragrunt apply`). This reverts
@@ -237,7 +173,7 @@ all layers atomically for that node.
 
 ---
 
-## 8. QUIC math (corrected)
+## 6. QUIC math (corrected)
 
 An earlier audit note claimed QUIC was at risk via a "double-WG nesting"
 (1192 < 1200). **That is wrong — there is no such nesting in this topology.**
@@ -251,18 +187,17 @@ Corrected inner QUIC UDP payload (= WG MTU − 28 for IPv4 IP+UDP):
 | Path / WG MTU | Inner UDP payload | ≥ 1200 floor? |
 |---|---|---|
 | `wg-firezone` 1280 | 1280 − 28 = **1252** | ✓ |
-| `wg-usa` / `wg-mexico` 1330 (post-align) | 1330 − 28 = **1302** | ✓ |
-| `wg-hub-ros` 1370 | 1370 − 28 = **1342** | ✓ |
+| garuda tunnels (`site_mtu` 1330, incl. `wg-hub-ros`) | 1330 − 28 = **1302** | ✓ |
 
-All paths clear the RFC 9000 1200-byte floor post-alignment. QUIC **works**;
-it is UDP and is never MSS-clamped. The TCP MSS 1240 is a TCP value and is NOT
+All paths clear the RFC 9000 1200-byte floor. QUIC **works**;
+it is UDP and is never MSS-clamped. The TCP MSS is a TCP value and is NOT
 used as QUIC evidence — the QUIC levers are a consistent MTU + transiting ICMP
 PTB (§3.4), both of which hold. A `wg-firezone` MTU increase is **not** needed
 for QUIC.
 
 ---
 
-## 9. Post-apply verification
+## 7. Post-apply verification
 
 After an apply, run `tofu plan -detailed-exitcode`; exit code 0 confirms there
 is no drift. The only e2e suite is the local stand:

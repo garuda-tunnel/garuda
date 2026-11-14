@@ -133,6 +133,36 @@ the [module migration instructions](../../modules/gcp_compute_host/README.md).
 To keep, release or remove these addresses later, see
 [GCP edge addresses](../../docs/operations/deploy-update-destroy.md#gcp-edge-addresses).
 
+## Site MTU/MSS policy (`mtu_policy`)
+
+`local.mtu_policy` in `garuda/main.tf` (`{ site_mtu = 1330 }`) is the one site-level MTU/MSS
+setting. Every component module takes the same `mtu_policy` object (`site_mtu`, `effective_mtu`,
+`fixed_mss`, `mss_clamp_enabled`, same validation) and derives its own values; mini-site passes
+`mtu_policy = local.mtu_policy` to each of them. Two forms: `site_mtu` alone
+(`effective_mtu = site_mtu`, `fixed_mss = site_mtu - 40`), or an explicit `effective_mtu` + `fixed_mss`.
+
+| Hop | What the policy sets |
+|---|---|
+| wireguard kube pods (edge, hub, hub-ros) | tunnel interface MTU `effective_mtu`; inbound TCP MSS clamp `fixed_mss` (the route-PMTU clamp on the outbound side is always on) |
+| RouterOS tunnel `wg-hub-ros` | interface MTU `effective_mtu`; MSS by `clamp-to-pmtu` (`fixed_mss` is not applied) |
+| ipt-server, border-router | TCP MSS clamp `fixed_mss` |
+| Firezone | MSS clamp `min(fixed_mss, firezone_client_mtu - 40)`; the client's `wg-firezone` MTU is set by Firezone, not by garuda (`firezone_client_mtu`, default 1280) |
+| `border` NAD (since #216) | bridge and pod veth MTU `effective_mtu`, through the `garuda_k8s` module's `mtu_policy` |
+
+`mss_clamp_enabled = false` switches the fixed-MSS clamps off (rollback and per-layer details:
+[MTU/MSS runbook](../../docs/operations/operator-runbook-mtu-mss-clamping.md)).
+
+`border` must match the tunnels: with the default 1500 bridge an oversized inbound packet is
+forwarded into a pod whose tunnel egress is narrower, and the pod's frag-needed reply leaves via the
+pod's default route and is dropped by the host as a martian, so UDP PMTUD black-holes; at the tunnel
+MTU the host itself answers with frag-needed.
+
+To change it, edit `local.mtu_policy` and apply. The wireguard, border-router and ipt-server pods roll
+because their pod templates carry the derived values (env, ConfigMap checksum); a NAD MTU reaches only
+new sandboxes, so the `garuda_guest` of every `border`-attached workload also takes `mtu_policy` as a
+hash-only input (since #216), which rolls Firezone (its MSS is capped by the client MTU and does not
+change). The host's `border` bridge MTU then follows its smallest port by itself; do not set it by hand.
+
 ## Adapting for real deployments
 
 1. Copy `inputs.tfvars.yaml.example` to `inputs.tfvars.yaml` (or your SOPS-encrypted

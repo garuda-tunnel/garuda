@@ -39,8 +39,8 @@ it `Available` again.
 
 The bytes live where the platform puts the StorageClass: the k3s local-path base directory
 (`default-local-storage-path`, default `/var/lib/rancher/k3s/storage`), which a site points at
-its backed-up data disk (infra unit `k3s_config`; the local stand uses an `/opt/garuda/...`
-path). The platform's data-disk backup is the only copy, so a lost disk is a lost database.
+its backed-up data disk (infra unit `k3s_config`; the local stand uses `/opt/data/local-path-provisioner`).
+The platform's data-disk backup is the only copy, so a lost disk is a lost database.
 A VM rebuild loses the k3s datastore (PV, PVC and Cluster objects) in every case; the
 directory survives only if the data disk does. After a rebuild re-attach the old volume to a
 new Cluster by hand: firezone-internal `docs/operations/operator-runbook-cnpg-migration.md`,
@@ -57,7 +57,7 @@ section 9. Object-store backups were removed as unused (history at garuda-intern
 | `owner` | string | (required) | Owning role; its credentials go into the `<name>-app` Secret. |
 | `storage_size` | string | `2Gi` | PVC size (Kubernetes quantity). |
 | `storage_class` | string | `local-path-retain` | Retain StorageClass, see Contract. |
-| `image` | string | (required) | Postgres image, `tag@digest`-pinned. The org Renovate regex cannot parse such tags, so mark the pin with a `# shortcut:` hand-bump note instead of a `# renovate:` annotation. |
+| `image` | string | (required) | Postgres image, `tag@digest`-pinned. Annotate it as in Usage below (org Renovate tag@digest manager, `versioning=regex:` keeps the flavour). |
 | `chart_version` | string | (required) | `cluster` chart version, pinned with a `# renovate: datasource=docker depName=ghcr.io/cloudnative-pg/charts/cluster` annotation; empty is rejected (it would install the latest chart). |
 
 ## Outputs
@@ -76,7 +76,7 @@ module "firezone_db" {
   namespace = kubernetes_namespace_v1.firezone.metadata[0].name
   database  = "firezone"
   owner     = "firezone"
-  # shortcut: tag@digest pin bumped by hand (org Renovate regex has no digest capture).
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql versioning=regex:^(?<major>\d+)\.(?<minor>\d+)-(?<patch>\d{12})-(?<compatibility>[^-]+-[^-]+)$
   image = "ghcr.io/cloudnative-pg/postgresql:17.11-202611020810-standard-trixie@sha256:4d0aac315c4d8c3202252bd06fea83b16951cc57234a7b610eeaa382ff4482d0"
   # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/charts/cluster
   chart_version = "0.9.0"

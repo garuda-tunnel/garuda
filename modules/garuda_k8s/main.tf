@@ -1,3 +1,7 @@
+locals {
+  effective_mtu = var.mtu_policy.site_mtu != null ? var.mtu_policy.site_mtu : var.mtu_policy.effective_mtu
+}
+
 resource "kubernetes_namespace_v1" "garuda" {
   metadata {
     name = var.namespace
@@ -59,6 +63,7 @@ resource "helm_release" "garuda" {
         borderSubnet     = var.border_subnet
         borderGateway    = cidrhost(var.border_subnet, 1)
         borderRangeStart = cidrhost(var.border_subnet, 2)
+        borderMtu        = local.effective_mtu
       },
       # Helm deep-merges this over the chart's podReaper defaults.
       var.pod_reaper_max_unready == null ? {} : { podReaper = { maxUnready = var.pod_reaper_max_unready } },

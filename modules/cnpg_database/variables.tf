@@ -57,7 +57,7 @@ variable "storage_class" {
 }
 
 variable "image" {
-  description = "PostgreSQL instance image, `tag@digest`-pinned (imageName). The org Renovate regex cannot parse such tags (no `X.Y.Z`, no digest capture), so callers mark the pin with a `# shortcut:` hand-bump note instead of a `# renovate:` annotation."
+  description = "PostgreSQL instance image, `tag@digest`-pinned (imageName). Callers annotate it for the org Renovate tag@digest manager (see README Usage)."
   type        = string
 
   validation {
