@@ -69,7 +69,7 @@ variables {
       fqdn_prefix         = "pt"
       hub_cidr            = "192.0.2.129/28"
       peer_cidr           = "192.0.2.130/28"
-      listen_port         = 51820
+      listen_port         = 55820
       ospf_router_id_hub  = "198.51.100.20"
       ospf_router_id_peer = "198.51.100.23"
     }
@@ -81,7 +81,7 @@ variables {
       fqdn_prefix         = "de"
       hub_cidr            = "192.0.2.145/28"
       peer_cidr           = "192.0.2.146/28"
-      listen_port         = 51821
+      listen_port         = 55821
       ospf_router_id_hub  = "198.51.100.30"
       ospf_router_id_peer = "198.51.100.33"
     }

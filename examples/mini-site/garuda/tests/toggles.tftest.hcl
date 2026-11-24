@@ -69,7 +69,7 @@ variables {
       fqdn_prefix         = "pt"
       hub_cidr            = "192.0.2.129/28"
       peer_cidr           = "192.0.2.130/28"
-      listen_port         = 51820
+      listen_port         = 55820
       ospf_router_id_hub  = "198.51.100.20"
       ospf_router_id_peer = "198.51.100.23"
     }
@@ -81,7 +81,7 @@ variables {
       fqdn_prefix         = "de"
       hub_cidr            = "192.0.2.145/28"
       peer_cidr           = "192.0.2.146/28"
-      listen_port         = 51821
+      listen_port         = 55821
       ospf_router_id_hub  = "198.51.100.30"
       ospf_router_id_peer = "198.51.100.33"
     }
@@ -215,7 +215,9 @@ run "routeros_inputs_required_when_enabled" {
   expect_failures = [var.routeros]
 }
 
-run "route_groups_twin" {
+run "flannel_wg_ports_rejected" {
+  # 51820/51821 are flannel wireguard-native's UDP ports on every k3s node; a
+  # tunnel hostPort there DNAT-steals flannel's packets, so both must be rejected.
   command = plan
 
   variables {
@@ -225,9 +227,55 @@ run "route_groups_twin" {
         hub_cidr           = "192.0.2.129/28", peer_cidr = "192.0.2.130/28", listen_port = 51820,
         ospf_router_id_hub = "198.51.100.20", ospf_router_id_peer = "198.51.100.23"
       }
+    }
+    hub_ros = {
+      hub_cidr           = "192.0.2.161/28"
+      routeros_cidr      = "192.0.2.162/28"
+      listen_port        = 51821
+      ospf_router_id_hub = "198.51.100.21"
+    }
+  }
+
+  expect_failures = [var.edges, var.hub_ros]
+}
+
+run "flannel_wg_ports_rejected_swapped" {
+  # Complementary case: edges on 51821, hub_ros on 51820 — both ports must be
+  # rejected on both variables, covering all four variable/port combinations.
+  command = plan
+
+  variables {
+    edges = {
+      out1 = {
+        machine_type       = "e2-small", boot_disk_gb = 20, region = "r", zone = "z", fqdn_prefix = "out1",
+        hub_cidr           = "192.0.2.129/28", peer_cidr = "192.0.2.130/28", listen_port = 51821,
+        ospf_router_id_hub = "198.51.100.20", ospf_router_id_peer = "198.51.100.23"
+      }
+    }
+    hub_ros = {
+      hub_cidr           = "192.0.2.161/28"
+      routeros_cidr      = "192.0.2.162/28"
+      listen_port        = 51820
+      ospf_router_id_hub = "198.51.100.21"
+    }
+  }
+
+  expect_failures = [var.edges, var.hub_ros]
+}
+
+run "route_groups_twin" {
+  command = plan
+
+  variables {
+    edges = {
+      out1 = {
+        machine_type       = "e2-small", boot_disk_gb = 20, region = "r", zone = "z", fqdn_prefix = "out1",
+        hub_cidr           = "192.0.2.129/28", peer_cidr = "192.0.2.130/28", listen_port = 55820,
+        ospf_router_id_hub = "198.51.100.20", ospf_router_id_peer = "198.51.100.23"
+      }
       out2 = {
         machine_type       = "e2-small", boot_disk_gb = 20, region = "r", zone = "z", fqdn_prefix = "out2",
-        hub_cidr           = "192.0.2.145/28", peer_cidr = "192.0.2.146/28", listen_port = 51821,
+        hub_cidr           = "192.0.2.145/28", peer_cidr = "192.0.2.146/28", listen_port = 55821,
         ospf_router_id_hub = "198.51.100.30", ospf_router_id_peer = "198.51.100.33"
       }
     }

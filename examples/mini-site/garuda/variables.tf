@@ -137,6 +137,13 @@ variable "edges" {
     ospf_router_id_peer = string
   }))
   default = {}
+
+  validation {
+    condition = alltrue([
+      for e in var.edges : e.listen_port != 51820 && e.listen_port != 51821
+    ])
+    error_message = "edges listen_port must not be 51820 or 51821: these are the standard WireGuard ports, which k3s flannel wireguard-native uses on every node, and a tunnel hostPort on them would steal flannel's packets. Use any other port."
+  }
 }
 
 # --- Hub-ros WireGuard tunnel (RouterOS ↔ hub) ---
@@ -154,6 +161,11 @@ variable "hub_ros" {
   validation {
     condition     = !var.routeros_enabled || var.hub_ros != null
     error_message = "hub_ros must be set when routeros_enabled is true."
+  }
+
+  validation {
+    condition     = var.hub_ros == null ? true : (var.hub_ros.listen_port != 51820 && var.hub_ros.listen_port != 51821)
+    error_message = "hub_ros listen_port must not be 51820 or 51821: these are the standard WireGuard ports, which k3s flannel wireguard-native uses on every node, and a tunnel hostPort on them would steal flannel's packets. Use any other port."
   }
 }
 

@@ -19,17 +19,24 @@ edges:
     fqdn_prefix: usa
     hub_cidr: 192.0.2.1/28
     peer_cidr: 192.0.2.2/28
-    listen_port: 51820
+    listen_port: 55820
     ospf_router_id_hub: 192.0.2.10
     ospf_router_id_peer: 192.0.2.11
   eur:                          # new edge
     fqdn_prefix: eur
     hub_cidr: 192.0.2.17/28
     peer_cidr: 192.0.2.18/28
-    listen_port: 51820
+    listen_port: 55822
     ospf_router_id_hub: 192.0.2.26
     ospf_router_id_peer: 192.0.2.27
 ```
+
+Each tunnel needs its own unique, free hub UDP port — every hub-side endpoint binds a
+`hostPort` on the shared hub node. Never use 51820/51821: these are the standard
+WireGuard ports, which k3s flannel wireguard-native uses on every node, and a tunnel
+hostPort on them would steal flannel's packets; any other port is fine. Mini-site
+currently uses 55820 (`pt`), 55821 (`de`) and 51822 (`hub_ros`), so the new edge
+above takes 55822.
 
 Choose tunnel CIDRs that do not overlap with existing edges, `backbone_network`
 (typically `172.30.0.0/24`), or `border_network` (typically `172.29.0.0/24`).

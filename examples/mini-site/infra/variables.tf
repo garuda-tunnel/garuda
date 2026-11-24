@@ -228,6 +228,13 @@ variable "edges" {
     condition     = !contains(keys(var.edges), "hub") && !contains(keys(var.edges), "client")
     error_message = "The edge slugs \"hub\" and \"client\" are reserved by the Proxmox hub/client: k3s.tf merges them after the edges map, so these keys would silently replace the Proxmox entries. Use different slugs."
   }
+
+  validation {
+    condition = alltrue([
+      for e in var.edges : e.listen_port != 51820 && e.listen_port != 51821
+    ])
+    error_message = "edges listen_port must not be 51820 or 51821: these are the standard WireGuard ports, which k3s flannel wireguard-native uses on every node, and a tunnel hostPort on them would steal flannel's packets. Use any other port."
+  }
 }
 
 # --- Operator SSH keys appended to every managed VM ---

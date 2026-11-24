@@ -10,6 +10,16 @@ Garuda supports two tunnel types:
 > on bare Linux hosts via a compose-era module that has since been removed. The current pattern
 > is `wireguard/kube` (from `garuda-tunnel/wireguard`) for all Linux-side WireGuard endpoints.
 
+> **Port rule.** k3s flannel (`wireguard-native` backend) listens on UDP 51820 (IPv4)
+> and 51821 (IPv6) on every node — these are the standard WireGuard ports — and a
+> tunnel port is exposed as a pod `hostPort` (a PREROUTING DNAT), so a tunnel
+> `listen_port` of 51820/51821 would steal flannel's packets and silently break
+> cross-node pod networking. Never use 51820/51821; any other port is fine
+> (Firezone client WireGuard on 51620 is unaffected). Each tunnel also needs its
+> own unique hub UDP port (every hub-side endpoint binds a `hostPort` on the shared
+> hub node). Mini-site currently uses 55820 (`pt`), 55821 (`de`) and 51822
+> (`hub_ros`); for a new tunnel pick any free hub port that is not 51820/51821.
+
 ## k3s-to-k3s tunnel (hub ↔ edge)
 
 Four modules work together:
@@ -35,12 +45,12 @@ module "wireguard_tunnel_eur" {
   peers = {
     core = {
       address       = "192.0.2.17"
-      listen_port   = 51820
+      listen_port   = 55822
       endpoint_host = var.cloudflare_hub.record_name
     }
     edge = {
       address       = "192.0.2.18"
-      listen_port   = 51820
+      listen_port   = 55822
       endpoint_host = var.cloudflare_edges["eur"].record_name
     }
   }
@@ -155,12 +165,12 @@ module "wireguard_tunnel_ros" {
   peers = {
     core = {
       address       = "198.51.100.1"
-      listen_port   = 51821
+      listen_port   = 51822
       endpoint_host = var.cloudflare_hub.record_name
     }
     edge = {
       address       = "198.51.100.2"
-      listen_port   = 51821
+      listen_port   = 51822
       endpoint_host = var.routeros.management_host
     }
   }

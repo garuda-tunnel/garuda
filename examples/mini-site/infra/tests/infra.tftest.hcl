@@ -87,7 +87,7 @@ variables {
       fqdn_prefix         = "pt"
       hub_cidr            = "192.0.2.129/28"
       peer_cidr           = "192.0.2.130/28"
-      listen_port         = 51820
+      listen_port         = 55820
       ospf_router_id_hub  = "198.51.100.20"
       ospf_router_id_peer = "198.51.100.23"
     }
@@ -99,7 +99,7 @@ variables {
       fqdn_prefix         = "de"
       hub_cidr            = "192.0.2.145/28"
       peer_cidr           = "192.0.2.146/28"
-      listen_port         = 51821
+      listen_port         = 55821
       ospf_router_id_hub  = "198.51.100.30"
       ospf_router_id_peer = "198.51.100.33"
     }
@@ -220,6 +220,58 @@ run "edges_reject_reserved_slug_client" {
         listen_port         = 51823
         ospf_router_id_hub  = "198.51.100.50"
         ospf_router_id_peer = "198.51.100.53"
+      }
+    }
+  }
+
+  expect_failures = [
+    var.edges,
+  ]
+}
+
+# 51820/51821 are flannel wireguard-native's UDP ports on every k3s node; a
+# tunnel hostPort there DNAT-steals flannel's packets, so both must be rejected.
+run "edges_reject_flannel_wg_port_51820" {
+  command = plan
+
+  variables {
+    edges = {
+      out1 = {
+        machine_type        = "e2-small"
+        boot_disk_gb        = 20
+        region              = "us-central1"
+        zone                = "us-central1-a"
+        fqdn_prefix         = "out1"
+        hub_cidr            = "192.0.2.129/28"
+        peer_cidr           = "192.0.2.130/28"
+        listen_port         = 51820
+        ospf_router_id_hub  = "198.51.100.20"
+        ospf_router_id_peer = "198.51.100.23"
+      }
+    }
+  }
+
+  expect_failures = [
+    var.edges,
+  ]
+}
+
+run "edges_reject_flannel_wg_port_51821" {
+  command = plan
+
+  variables {
+    edges = {
+      out1 = {
+        machine_type        = "e2-small"
+        boot_disk_gb        = 20
+        region              = "us-central1"
+        zone                = "us-central1-a"
+        fqdn_prefix         = "out1"
+        hub_cidr            = "192.0.2.129/28"
+        peer_cidr           = "192.0.2.130/28"
+        listen_port         = 51821
+        ospf_router_id_hub  = "198.51.100.20"
+        ospf_router_id_peer = "198.51.100.23"
       }
     }
   }
