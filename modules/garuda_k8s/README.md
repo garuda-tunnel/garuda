@@ -3,7 +3,8 @@
 Bootstraps one Kubernetes namespace with the shared transport plumbing
 required by every Garuda edge workload: namespace, two
 `NetworkAttachmentDefinition` resources (`backbone`, `border`), a network
-metadata `ConfigMap`, and optionally the Multus CNI DaemonSet.
+metadata `ConfigMap`, optionally the Multus CNI DaemonSet, and a
+namespace-scoped Stakater Reloader for secret-triggered pod rollouts.
 
 The module is a thin wrapper over `helm_release` rendering the bundled
 chart at `${path.module}/charts/garuda`.
@@ -22,7 +23,7 @@ chart at `${path.module}/charts/garuda`.
 
 | Output              | Description |
 |---------------------|-------------|
-| `namespace`         | Echo of `var.namespace`. Pass to `modules/wireguard/kube`. |
+| `namespace`         | Echo of `var.namespace`, returned only once the CNI/NAD bootstrap, MAP propagation and Reloader install are done. Pass to `modules/wireguard/kube`. |
 | `backbone_nad_name` | Static value `"backbone"`. |
 | `border_nad_name`   | Static value `"border"`. |
 
@@ -41,6 +42,34 @@ module "garuda_k8s_pt" {
   backbone_subnet = "10.42.0.0/24"
   border_subnet   = "10.43.0.0/24"
 }
+```
+
+## Reloader (secret-triggered rollouts)
+
+The module installs [Stakater Reloader](https://github.com/stakater/Reloader)
+(chart `oci://ghcr.io/stakater/charts/reloader`, Renovate-tracked via the
+annotation in `main.tf`) in the module namespace, so a Secret change can roll
+consuming pods without the secret value ever entering Helm values. It is
+namespace-scoped by three settings:
+
+- `reloader.watchGlobally=false` — its RBAC is a Role + RoleBinding in the
+  module namespace, never a ClusterRole on Secrets.
+- `reloader.reloadStrategy=annotations` — it rolls via a Deployment annotation
+  instead of injecting env vars into containers Helm owns.
+- `reloader.ignoreConfigMaps=true` — only Secret rollouts are in scope.
+
+The Role that `watchGlobally=false` buys can read every Secret in the
+module namespace: Reloader must watch them all to detect updates. It can
+only read (get/list/watch) and never write, but anything stored in the
+module namespace is observable by it — keep that in mind before placing
+unrelated Secrets there.
+
+Consumers opt in per Deployment with the annotation (value = Secret name):
+
+```yaml
+metadata:
+  annotations:
+    secret.reloader.stakater.com/reload: <name>-credentials
 ```
 
 ## Multus sizing and pod-reaper scope

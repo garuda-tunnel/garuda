@@ -56,6 +56,56 @@ run "namespace_propagates_to_both_releases" {
   }
 }
 
+# Reloader is the secret-rollout mechanism for consumer Deployments: it must be
+# pinned to this module namespace (Role/RoleBinding RBAC, never a ClusterRole
+# on Secrets) and watch only Secrets via the reload annotation. The version is
+# written literally in main.tf under the Renovate annotation so repin works.
+run "reloader_is_namespace_scoped" {
+  command = plan
+
+  assert {
+    condition     = helm_release.reloader.repository == "oci://ghcr.io/stakater/charts"
+    error_message = "helm_release.reloader.repository must be the Stakater OCI chart repo."
+  }
+
+  assert {
+    condition     = helm_release.reloader.chart == "reloader"
+    error_message = "helm_release.reloader.chart must be reloader."
+  }
+
+  assert {
+    condition     = can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", helm_release.reloader.version))
+    error_message = "helm_release.reloader.version must be an exact X.Y.Z pin (Renovate repins it in main.tf)"
+  }
+
+  assert {
+    condition     = helm_release.reloader.namespace == var.namespace
+    error_message = "helm_release.reloader.namespace must echo var.namespace so its RBAC scope matches the consumer workloads."
+  }
+
+  assert {
+    condition = yamldecode(helm_release.reloader.values[0]).reloader == {
+      watchGlobally    = false
+      reloadStrategy   = "annotations"
+      ignoreConfigMaps = true
+    }
+    error_message = "reloader values must be exactly watchGlobally=false (namespace Role, no ClusterRole), reloadStrategy=annotations, ignoreConfigMaps=true."
+  }
+}
+
+run "reloader_follows_namespace" {
+  command = plan
+
+  variables {
+    namespace = "garuda-pt"
+  }
+
+  assert {
+    condition     = helm_release.reloader.namespace == "garuda-pt"
+    error_message = "helm_release.reloader.namespace must echo a non-default var.namespace; consumers rely on it being scoped to their namespace."
+  }
+}
+
 run "garuda_values_include_subnets" {
   command = plan
 

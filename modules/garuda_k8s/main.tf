@@ -76,6 +76,35 @@ resource "helm_release" "garuda" {
   depends_on = [helm_release.garuda_cni]
 }
 
+# Reloader rolls Deployments in this namespace when a Secret they opted into
+# changes, so secret values never have to pass through Helm values. Consumers
+# opt in per Deployment with the `secret.reloader.stakater.com/reload`
+# annotation (see README). A separate release, not a garuda chart subchart,
+# because a Reloader bump must not change the garuda chart version (which
+# feeds the fleet-wide profile-rev rollout hash).
+resource "helm_release" "reloader" {
+  name             = "reloader"
+  namespace        = kubernetes_namespace_v1.garuda.metadata[0].name
+  create_namespace = false
+  repository       = "oci://ghcr.io/stakater/charts"
+  chart            = "reloader"
+  # renovate: datasource=docker depName=ghcr.io/stakater/charts/reloader
+  version = "2.2.21"
+
+  # watchGlobally=false: Role/RoleBinding in this namespace only, never a
+  # ClusterRole on Secrets. reloadStrategy=annotations: no env vars injected
+  # into containers Helm owns. ignoreConfigMaps=true: only Secret rollouts.
+  values = [
+    yamlencode({
+      reloader = {
+        watchGlobally    = false
+        reloadStrategy   = "annotations"
+        ignoreConfigMaps = true
+      }
+    })
+  ]
+}
+
 # time_sleep.map_propagation: absorbs MAP/MAPBinding propagation latency.
 # Empirically observed: ~3-5 seconds from MAP object creation to API server enforcement
 # (confirmed in smoke 1: docs/artifacts/2026-06-21-vpn-test2-map-smoke.md, observation #4).
