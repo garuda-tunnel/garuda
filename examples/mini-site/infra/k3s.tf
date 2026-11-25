@@ -97,10 +97,9 @@ resource "terraform_data" "known_hosts" {
 
 module "k3s" {
   for_each = local.k3s_nodes
-  # v0.3.2 ships the runc AppArmor attachment fix (k3s-bootstrap #18): without
-  # it Postgres does not start on Ubuntu kernels >= 7.0.0-41. New optional
-  # inputs only, so nothing else changes for callers of v0.2.0.
-  source     = "git::https://github.com/garuda-tunnel/k3s-bootstrap.git?ref=v0.3.2"
+  # >= v0.3.2 for the runc AppArmor attachment fix (k3s-bootstrap #18): without
+  # it Postgres does not start on Ubuntu kernels >= 7.0.0-41.
+  source     = "git::https://github.com/garuda-tunnel/k3s-bootstrap.git?ref=v0.4.0"
   depends_on = [terraform_data.known_hosts]
 
   node_type            = "initial"
@@ -119,7 +118,11 @@ module "k3s" {
   # The WireGuard/FRR pods set these pod-scope sysctls; kubelet flags them
   # unsafe unless allow-listed at install time (the same set the retired
   # k3s_cloud_init module seeded). tls-san 127.0.0.1 is added by the module.
+  # flannel-backend states the module default explicitly: each node is a
+  # single-member cluster, so switching a node installed by k3s-bootstrap
+  # v0.3.x (vxlan) is safe, and v0.4.0 refuses that switch unless asked for.
   k3s_config = {
-    "kubelet-arg" = ["allowed-unsafe-sysctls=net.ipv4.ip_forward,net.ipv4.conf.all.src_valid_mark,net.ipv4.conf.all.rp_filter"]
+    "kubelet-arg"     = ["allowed-unsafe-sysctls=net.ipv4.ip_forward,net.ipv4.conf.all.src_valid_mark,net.ipv4.conf.all.rp_filter"]
+    "flannel-backend" = "wireguard-native"
   }
 }

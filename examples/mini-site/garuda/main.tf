@@ -86,9 +86,9 @@ module "garuda_guest_wireguard_kube_edge" {
 
 module "wireguard_kube_edge" {
   for_each = var.edges
-  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.0"
+  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.2"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
-  chart_version = "2.0.0"
+  chart_version = "2.0.2"
 
   providers = {
     helm       = helm.edge[each.key]
@@ -210,9 +210,9 @@ module "garuda_guest_wireguard_kube_hub" {
 
 module "wireguard_kube_hub" {
   for_each = var.edges
-  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.0"
+  source   = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.2"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
-  chart_version = "2.0.0"
+  chart_version = "2.0.2"
 
   providers = {
     helm       = helm.hub
@@ -253,9 +253,9 @@ module "garuda_guest_wireguard_kube_hub_ros" {
 
 module "wireguard_kube_hub_ros" {
   count  = var.routeros_enabled ? 1 : 0
-  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.0"
+  source = "git::https://github.com/garuda-tunnel/wireguard.git//kube?ref=v2.0.2"
   # renovate: datasource=docker depName=ghcr.io/garuda-tunnel/charts/wireguard
-  chart_version = "2.0.0"
+  chart_version = "2.0.2"
 
   providers = {
     helm       = helm.hub

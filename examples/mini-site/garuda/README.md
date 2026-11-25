@@ -43,7 +43,7 @@ addresses (`x` to `x[0]`) so default plans show no destroy/create.
 
 Firezone uses the CNPG `postgres` cluster in the hub workload namespace, on
 `local-path-retain`; it receives connection credentials from `postgres-app`.
-Node precondition: k3s-bootstrap `v0.3.2` or newer (what `infra/` pins) — its
+Node precondition: k3s-bootstrap `v0.3.2` or newer (`infra/` pins `v0.4.0`) — its
 runc AppArmor attachment fix is required on Ubuntu kernels `7.0.0-41` and
 later, or the Postgres instance never becomes ready.
 The database lives only on the hub's `local-path-retain` volume; keep that volume on a
